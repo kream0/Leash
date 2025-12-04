@@ -1,29 +1,31 @@
 # Last Session
 
 **Date:** 2025-12-04
-**Focus:** Project Initialization
+**Focus:** Server Project Structure
 
 ## Completed
-- ✅ Designed system architecture (3-tier: Android app, Bridge server, Agent adapters)
-- ✅ Chose tech stack (Node.js/TypeScript for server, Kotlin/Compose for Android)
-- ✅ Created AI Pair Programming files (CLAUDE.md, PRD.md, TODO.md)
-- ✅ Initialized git repository
+- ✅ Created `server/` directory with Node.js/TypeScript project
+- ✅ Set up Express + WebSocket server
+- ✅ Created types for agents, activities, and messages
+- ✅ Implemented adapter base class and Claude/Copilot adapters
+- ✅ Created API routes and WebSocket handler  
+- ✅ Created AgentManager for coordinating adapters
+- ✅ Verified server starts and creates demo agent
 
-## Architecture Decisions
-- **Local network only** for MVP (same WiFi required)
-- **Text-only interaction** (no file viewing or approval buttons)
-- **WebSocket** for real-time activity streaming
-- **node-pty** for terminal monitoring
+## Technical Notes
+- Used `crypto.randomUUID()` instead of `uuid` package (avoids dependency)
+- Removed `node-pty` for now (requires Windows SDK for native compilation)
+- Adapters have placeholder terminal monitoring (to be implemented)
 
 ## Files Created
-- README.md
-- CLAUDE.md
-- PRD.md
-- TODO.md
-- LAST_SESSION.md
-- .gitignore
+- server/package.json, tsconfig.json
+- server/src/types/index.ts
+- server/src/adapters/{base,claude,copilot,index}.ts
+- server/src/api/routes.ts
+- server/src/websocket/handler.ts
+- server/src/agent-manager.ts  
+- server/src/index.ts
 
 ## Next Steps
-1. Create server project structure with TypeScript
-2. Implement basic Express + WebSocket server
-3. Create agent adapter interface
+1. Create Android project with Jetpack Compose
+2. Implement real terminal monitoring (when build tools available)

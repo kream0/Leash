@@ -1,0 +1,33 @@
+{
+    "name": "leash-server",
+    "version": "0.1.0",
+    "description": "Bridge server for Leash - connects mobile app to AI coding agents",
+    "main": "dist/index.js",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "test": "vitest"
+    },
+    "keywords": [
+        "ai",
+        "agent",
+        "monitor",
+        "websocket"
+    ],
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+        "@types/express": "^4.17.21",
+        "@types/node": "^20.10.0",
+        "@types/ws": "^8.5.10",
+        "tsx": "^4.6.2",
+        "typescript": "^5.3.2",
+        "vitest": "^1.0.4"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "uuid": "^9.0.1",
+        "ws": "^8.14.2"
+    }
+}
