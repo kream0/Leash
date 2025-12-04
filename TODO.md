@@ -26,6 +26,7 @@
 - [x] Connection status UI
 
 ### Phase 4: Integration & Polish
+- [x] QR code connection setup
 - [ ] End-to-end testing
 - [ ] Error handling & reconnection
 - [ ] UI polish and animations

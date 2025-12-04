@@ -1,52 +1,78 @@
 package com.leash.app.ui.navigation
 
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.leash.app.data.AgentRepository
+import com.leash.app.data.ConnectionSettings
+import com.leash.app.data.LeashWebSocketClient
 import com.leash.app.ui.screens.AgentDetailScreen
 import com.leash.app.ui.screens.AgentListScreen
+import com.leash.app.ui.screens.ConnectionScreen
 
 object Routes {
+    const val CONNECTION = "connection"
     const val AGENT_LIST = "agents"
     const val AGENT_DETAIL = "agents/{agentId}"
-    
+
     fun agentDetail(agentId: String) = "agents/$agentId"
 }
 
 @Composable
-fun LeashNavHost(
-    navController: NavHostController,
-    repository: AgentRepository = AgentRepository()
-) {
-    NavHost(
-        navController = navController,
-        startDestination = Routes.AGENT_LIST
-    ) {
-        composable(Routes.AGENT_LIST) {
-            AgentListScreen(
-                repository = repository,
-                onAgentClick = { agentId ->
-                    navController.navigate(Routes.agentDetail(agentId))
-                }
+fun LeashNavHost(navController: NavHostController) {
+    val context = LocalContext.current
+    val settings = remember { ConnectionSettings(context) }
+
+    // Create repository with dynamic URL
+    var repository by remember { mutableStateOf<AgentRepository?>(null) }
+
+    NavHost(navController = navController, startDestination = Routes.CONNECTION) {
+        composable(Routes.CONNECTION) {
+            ConnectionScreen(
+                    onConnected = { serverUrl ->
+                        // Create new repository with the provided URL
+                        repository = AgentRepository(LeashWebSocketClient(serverUrl))
+                        navController.navigate(Routes.AGENT_LIST) {
+                            popUpTo(Routes.CONNECTION) { inclusive = true }
+                        }
+                    }
             )
         }
-        
+
+        composable(Routes.AGENT_LIST) {
+            repository?.let { repo ->
+                AgentListScreen(
+                        repository = repo,
+                        onAgentClick = { agentId ->
+                            navController.navigate(Routes.agentDetail(agentId))
+                        },
+                        onDisconnect = {
+                            repo.disconnect()
+                            repository = null
+                            navController.navigate(Routes.CONNECTION) {
+                                popUpTo(Routes.AGENT_LIST) { inclusive = true }
+                            }
+                        }
+                )
+            }
+        }
+
         composable(
-            route = Routes.AGENT_DETAIL,
-            arguments = listOf(
-                navArgument("agentId") { type = NavType.StringType }
-            )
+                route = Routes.AGENT_DETAIL,
+                arguments = listOf(navArgument("agentId") { type = NavType.StringType })
         ) { backStackEntry ->
             val agentId = backStackEntry.arguments?.getString("agentId") ?: return@composable
-            AgentDetailScreen(
-                agentId = agentId,
-                repository = repository,
-                onBackClick = { navController.popBackStack() }
-            )
+            repository?.let { repo ->
+                AgentDetailScreen(
+                        agentId = agentId,
+                        repository = repo,
+                        onBackClick = { navController.popBackStack() }
+                )
+            }
         }
     }
 }

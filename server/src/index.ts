@@ -1,10 +1,55 @@
 import express from 'express';
 import { createServer } from 'http';
+import { networkInterfaces } from 'os';
+import qrcode from 'qrcode-terminal';
 import { AgentManager } from './agent-manager.js';
 import { createRoutes } from './api/routes.js';
 import { WebSocketHandler } from './websocket/handler.js';
 
 const PORT = process.env.PORT || 3000;
+
+/**
+ * Get the local network IP address.
+ */
+function getLocalIP(): string {
+    const nets = networkInterfaces();
+    for (const name of Object.keys(nets)) {
+        for (const net of nets[name] || []) {
+            // Skip internal and non-IPv4 addresses
+            if (net.family === 'IPv4' && !net.internal) {
+                return net.address;
+            }
+        }
+    }
+    return 'localhost';
+}
+
+/**
+ * Display connection info with QR code.
+ */
+function displayConnectionInfo(ip: string, port: number | string): void {
+    const wsUrl = `ws://${ip}:${port}/ws`;
+    const httpUrl = `http://${ip}:${port}`;
+
+    console.log('\n');
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║                    🐕 LEASH SERVER                         ║');
+    console.log('╠════════════════════════════════════════════════════════════╣');
+    console.log('║  Scan this QR code with the Leash mobile app:              ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    console.log('');
+
+    // Generate QR code
+    qrcode.generate(wsUrl, { small: true }, (code) => {
+        console.log(code);
+        console.log('');
+        console.log('Or connect manually:');
+        console.log(`   WebSocket URL: ${wsUrl}`);
+        console.log(`   REST API:      ${httpUrl}/api`);
+        console.log(`   Health check:  ${httpUrl}/api/health`);
+        console.log('');
+    });
+}
 
 async function main() {
     // Create core components
@@ -14,6 +59,14 @@ async function main() {
 
     // Middleware
     app.use(express.json());
+
+    // CORS for mobile app
+    app.use((_req, res, next) => {
+        res.header('Access-Control-Allow-Origin', '*');
+        res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        next();
+    });
 
     // API routes
     app.use('/api', createRoutes(agentManager));
@@ -28,16 +81,17 @@ async function main() {
         }
     });
 
+    // Get local IP
+    const localIP = getLocalIP();
+
     // Start server
     server.listen(PORT, () => {
-        console.log(`🐕 Leash server running on http://localhost:${PORT}`);
-        console.log(`   REST API: http://localhost:${PORT}/api`);
-        console.log(`   WebSocket: ws://localhost:${PORT}/ws`);
+        displayConnectionInfo(localIP, PORT);
     });
 
     // Demo: Add a test Claude Code agent
     const agent = await agentManager.addClaudeCodeAgent();
-    console.log(`   Demo agent created: ${agent.name}`);
+    console.log(`Demo agent created: ${agent.name}`);
 
     // Graceful shutdown
     process.on('SIGINT', async () => {
