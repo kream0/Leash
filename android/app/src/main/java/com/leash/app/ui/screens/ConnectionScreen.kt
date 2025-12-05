@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.leash.app.data.ConnectionSettings
+import com.leash.app.ui.components.QrScannerDialog
 import com.leash.app.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -192,36 +193,6 @@ fun ConnectionScreen(onConnected: (String) -> Unit) {
     }
 }
 
-@Composable
-private fun QrScannerDialog(onDismiss: () -> Unit, onScanned: (String) -> Unit) {
-    // Simple placeholder - in production, use ML Kit or ZXing
-    AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text("Scan QR Code") },
-            text = {
-                Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(
-                            modifier =
-                                    Modifier.size(200.dp)
-                                            .clip(RoundedCornerShape(16.dp))
-                                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                                            .border(2.dp, LeashPrimary, RoundedCornerShape(16.dp)),
-                            contentAlignment = Alignment.Center
-                    ) { Text(text = "📷", style = MaterialTheme.typography.displayLarge) }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                            text = "Point camera at QR code",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            },
-            confirmButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
-    )
-}
 
 private fun validateUrl(url: String): Boolean {
     return url.startsWith("ws://") || url.startsWith("wss://")

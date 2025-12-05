@@ -6,22 +6,44 @@ import { AgentManager } from './agent-manager.js';
 import { createRoutes } from './api/routes.js';
 import { WebSocketHandler } from './websocket/handler.js';
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
 /**
  * Get the local network IP address.
+ * Prioritizes WiFi and physical interfaces over virtual ones.
  */
 function getLocalIP(): string {
     const nets = networkInterfaces();
+    const candidates: { address: string; priority: number }[] = [];
+
     for (const name of Object.keys(nets)) {
         for (const net of nets[name] || []) {
             // Skip internal and non-IPv4 addresses
             if (net.family === 'IPv4' && !net.internal) {
-                return net.address;
+                const lowerName = name.toLowerCase();
+                let priority = 0;
+
+                // Prioritize WiFi and physical interfaces
+                if (lowerName.includes('wi-fi') || lowerName.includes('wifi') || lowerName.includes('wlan')) {
+                    priority = 100;
+                } else if (lowerName.includes('ethernet') && !lowerName.includes('vethernet')) {
+                    priority = 90;
+                } else if (lowerName.startsWith('eth')) {
+                    priority = 80;
+                } else if (lowerName.includes('vethernet') || lowerName.includes('wsl') || lowerName.includes('hyper-v')) {
+                    priority = 10; // Virtual interfaces - low priority
+                } else {
+                    priority = 50; // Unknown interfaces
+                }
+
+                candidates.push({ address: net.address, priority });
             }
         }
     }
-    return 'localhost';
+
+    // Sort by priority (highest first) and return the best match
+    candidates.sort((a, b) => b.priority - a.priority);
+    return candidates[0]?.address || 'localhost';
 }
 
 /**
