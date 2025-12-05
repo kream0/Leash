@@ -43,7 +43,12 @@ class LeashWebSocketClient(
     private val _agents = MutableStateFlow<List<Agent>>(emptyList())
     val agents: StateFlow<List<Agent>> = _agents.asStateFlow()
 
-    private val _activities = MutableSharedFlow<AgentActivity>()
+    // Store activities per agent so they can be retrieved later
+    private val _activitiesPerAgent = MutableStateFlow<Map<String, List<AgentActivity>>>(emptyMap())
+    val activitiesPerAgent: StateFlow<Map<String, List<AgentActivity>>> = _activitiesPerAgent.asStateFlow()
+
+    // Also keep the SharedFlow for real-time updates
+    private val _activities = MutableSharedFlow<AgentActivity>(replay = 100)
     val activities: SharedFlow<AgentActivity> = _activities.asSharedFlow()
 
     fun connect() {
@@ -79,6 +84,8 @@ class LeashWebSocketClient(
         webSocket?.close(1000, "Client closing")
         webSocket = null
         _connectionState.value = ConnectionState.DISCONNECTED
+        // Clear stored activities
+        _activitiesPerAgent.value = emptyMap()
     }
 
     fun sendMessage(agentId: String, message: String) {
@@ -96,6 +103,13 @@ class LeashWebSocketClient(
             "agentId" to agentId
         ))
         webSocket?.send(json)
+    }
+
+    /**
+     * Get stored activities for a specific agent.
+     */
+    fun getActivitiesForAgent(agentId: String): List<AgentActivity> {
+        return _activitiesPerAgent.value[agentId] ?: emptyList()
     }
 
     private fun handleMessage(text: String) {
@@ -127,6 +141,8 @@ class LeashWebSocketClient(
     private fun handleAgentDisconnected(json: JsonObject) {
         val agentId = json.get("agentId").asString
         _agents.value = _agents.value.filter { it.id != agentId }
+        // Clean up activities for this agent
+        _activitiesPerAgent.value = _activitiesPerAgent.value - agentId
     }
 
     private fun handleActivity(json: JsonObject) {
@@ -136,6 +152,13 @@ class LeashWebSocketClient(
             content = json.get("content").asString,
             timestamp = json.get("timestamp").asLong
         )
+        
+        // Store in per-agent map
+        val currentActivities = _activitiesPerAgent.value.toMutableMap()
+        val agentActivities = (currentActivities[activity.agentId] ?: emptyList()) + activity
+        currentActivities[activity.agentId] = agentActivities.takeLast(100) // Keep last 100
+        _activitiesPerAgent.value = currentActivities
+        
         scope.launch {
             _activities.emit(activity)
         }

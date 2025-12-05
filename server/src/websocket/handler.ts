@@ -10,6 +10,8 @@ export class WebSocketHandler {
     private wss: WebSocketServer;
     private clients: Set<WebSocket> = new Set();
     private subscriptions: Map<WebSocket, Set<string>> = new Map();
+    private activityHistory: Map<string, { content: string; timestamp: number }[]> = new Map();
+    private readonly MAX_HISTORY = 50;
 
     constructor(private agentManager: AgentManager) {
         this.wss = new WebSocketServer({ noServer: true });
@@ -17,21 +19,33 @@ export class WebSocketHandler {
     }
 
     private setupEventHandlers(): void {
-        // Listen for agent events from manager
         this.agentManager.on('agent_connected', (agent: Agent) => {
             this.broadcast({ type: 'agent_connected', agent });
         });
 
         this.agentManager.on('agent_disconnected', (agentId: string) => {
             this.broadcast({ type: 'agent_disconnected', agentId });
+            this.activityHistory.delete(agentId);
         });
 
         this.agentManager.on('activity', (agentId: string, content: string) => {
-            this.broadcastToSubscribers(agentId, {
+            console.log(`[WebSocket] Activity from ${agentId.substring(0, 8)}: ${content.substring(0, 50)}...`);
+
+            const timestamp = Date.now();
+            if (!this.activityHistory.has(agentId)) {
+                this.activityHistory.set(agentId, []);
+            }
+            const history = this.activityHistory.get(agentId)!;
+            history.push({ content, timestamp });
+            if (history.length > this.MAX_HISTORY) {
+                history.shift();
+            }
+
+            this.broadcast({
                 type: 'activity',
                 agentId,
                 content,
-                timestamp: Date.now(),
+                timestamp,
             });
         });
 
@@ -53,7 +67,22 @@ export class WebSocketHandler {
 
         // Send current agents list
         const agents = this.agentManager.getAgents();
+        console.log(`[WebSocket] Sending ${agents.length} agents to client`);
         this.send(ws, { type: 'agents_list', agents });
+
+        // Send recent activity history for all agents
+        console.log(`[WebSocket] Sending activity history for ${this.activityHistory.size} agents`);
+        for (const [agentId, history] of this.activityHistory) {
+            console.log(`[WebSocket] Sending ${history.length} activities for agent ${agentId.substring(0, 8)}...`);
+            for (const { content, timestamp } of history) {
+                this.send(ws, {
+                    type: 'activity',
+                    agentId,
+                    content,
+                    timestamp,
+                });
+            }
+        }
 
         ws.on('message', (data) => {
             try {
@@ -105,15 +134,6 @@ export class WebSocketHandler {
     private broadcast(message: ServerMessage): void {
         for (const client of this.clients) {
             this.send(client, message);
-        }
-    }
-
-    private broadcastToSubscribers(agentId: string, message: ServerMessage): void {
-        for (const [client, subs] of this.subscriptions) {
-            if (subs.has(agentId) || subs.size === 0) {
-                // If no subscriptions, send all; otherwise filter
-                this.send(client, message);
-            }
         }
     }
 }

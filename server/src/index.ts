@@ -111,9 +111,33 @@ async function main() {
         displayConnectionInfo(localIP, PORT);
     });
 
-    // Demo: Add a test Claude Code agent
-    const agent = await agentManager.addClaudeCodeAgent();
-    console.log(`Demo agent created: ${agent.name}`);
+    // Start auto-detection of AI coding agents
+    agentManager.startAutoDetection(5000);
+    console.log('[Server] Auto-detection enabled - scanning for Claude Code and Copilot processes...');
+
+    // Spawn a Claude Code agent in the parent directory (leash project root)
+    // Use WSL first for proper output capture via script command
+    const projectRoot = process.cwd().replace(/[\\\\/]server$/, '');
+    let agent = null;
+
+    try {
+        // Use WSL for proper terminal output capture
+        agent = await agentManager.addClaudeCodeAgent({ workingDirectory: projectRoot, useWsl: true });
+        console.log(`[Server] Spawned Claude Code agent (WSL): ${agent.name}`);
+        console.log(`[Server] Working directory: ${projectRoot}`);
+    } catch (error) {
+        console.log('[Server] WSL failed, trying Windows (limited output capture)...');
+        try {
+            // Fallback to Windows
+            agent = await agentManager.addClaudeCodeAgent({ workingDirectory: projectRoot, useWsl: false });
+            console.log(`[Server] Spawned Claude Code agent (Windows): ${agent.name}`);
+            console.log(`[Server] Working directory: ${projectRoot}`);
+        } catch (wslError) {
+            console.error('[Server] Failed to spawn Claude Code agent:', wslError);
+            console.log('[Server] Claude Code CLI may not be installed.');
+            console.log('[Server] Install with: npm install -g @anthropic-ai/claude-code');
+        }
+    }
 
     // Graceful shutdown
     process.on('SIGINT', async () => {

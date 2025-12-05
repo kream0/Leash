@@ -1,6 +1,6 @@
 # TODO - Leash Development
 
-## 🎯 Current Priority: Project Setup
+## 🎯 Current Priority: Integration & Polish
 
 ### Phase 1: Initialization ✅ COMPLETE
 - [x] Design architecture
@@ -25,14 +25,22 @@
 - [x] Message input component
 - [x] Connection status UI
 
-### Phase 4: Integration & Polish
+### Phase 4: Claude Code Hooks ✅ COMPLETE
+- [x] Create hook script (.claude/hooks/leash_hook.js)
+- [x] Hook configuration (.claude/settings.json)
+- [x] WSL support with Windows host fallback
+- [x] Server endpoint for hook events (/api/hooks)
+- [x] Real-time relay to mobile clients
+- [x] Agent detector for auto-discovery
+
+### Phase 5: Integration & Polish
 - [x] QR code connection setup
-- [/] Build and install on device
-- [ ] End-to-end testing
+- [x] Build and install on device
+- [ ] End-to-end testing with live Claude sessions
 - [ ] Error handling & reconnection
 - [ ] UI polish and animations
 
 ---
 
 **Estimated Total:** 20-30 hours
-**Next Session Goal:** Complete server project structure
+**Status:** Core implementation complete, testing phase
