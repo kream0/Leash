@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Dog emoji representation - simple paw icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,38c-4.4,0 -8,3.6 -8,8s3.6,8 8,8s8,-3.6 8,-8S58.4,38 54,38z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,50c-3.3,0 -6,2.7 -6,6s2.7,6 6,6s6,-2.7 6,-6S41.3,50 38,50z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,50c-3.3,0 -6,2.7 -6,6s2.7,6 6,6s6,-2.7 6,-6S73.3,50 70,50z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M46,62c-3.3,0 -6,2.7 -6,6s2.7,6 6,6s6,-2.7 6,-6S49.3,62 46,62z"/>
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M62,62c-3.3,0 -6,2.7 -6,6s2.7,6 6,6s6,-2.7 6,-6S65.3,62 62,62z"/>
+</vector>

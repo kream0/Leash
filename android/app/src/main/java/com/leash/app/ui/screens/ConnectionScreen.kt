@@ -11,7 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,7 +101,7 @@ fun ConnectionScreen(onConnected: (String) -> Unit) {
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = LeashPrimary)
             ) {
                 Icon(
-                        Icons.Default.QrCodeScanner,
+                        Icons.Default.Search,
                         contentDescription = null,
                         modifier = Modifier.size(24.dp)
                 )

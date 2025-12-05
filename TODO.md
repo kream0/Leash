@@ -27,6 +27,7 @@
 
 ### Phase 4: Integration & Polish
 - [x] QR code connection setup
+- [/] Build and install on device
 - [ ] End-to-end testing
 - [ ] Error handling & reconnection
 - [ ] UI polish and animations

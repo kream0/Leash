@@ -15,17 +15,15 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        vectorDrawables { useSupportLibrary = true }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),
-                "proguard-rules.pro"
+                    getDefaultProguardFile("proguard-android-optimize.txt"),
+                    "proguard-rules.pro"
             )
         }
     }
@@ -35,23 +33,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures {
-        compose = true
-    }
+    buildFeatures { compose = true }
 
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.6"
-    }
+    composeOptions { kotlinCompilerExtensionVersion = "1.5.6" }
 
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
-    }
+    packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
 dependencies {
