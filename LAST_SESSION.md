@@ -1,54 +1,76 @@
 # Last Session
 
 **Date:** 2025-12-06
-**Focus:** Android UX Improvements & Clipboard Messaging
+**Focus:** Message Queue & Interrupt Feature (Partial)
 
 ## Completed
 
 ### Server
-- Updated `websocket/handler.ts` - Added `send_message` WebSocket handler for clipboard messaging
-- Updated `api/routes.ts` - Implemented clipboard-based message sending via PowerShell
-- Updated `types/index.ts` - Added `send_message` to ClientMessage type
+- Added message queue system (`messageQueues` Map in routes.ts)
+- Added `/api/agents/:id/queue` endpoint (GET - dequeue message for Stop hook)
+- Added `/api/agents/:id/queue/peek` endpoint (GET - peek without removing)
+- Added `/api/agents/:id/interrupt` endpoint (POST - send ESC to Claude window)
+- Updated `/api/agents/:id/send` to queue messages instead of clipboard
+- Updated WebSocket handler with `send_message` (queue) and `interrupt` handlers
+
+### Hook (Global)
+- Updated `~/.claude/hooks/leash_hook.js` to:
+  - Check message queue on `Stop` event
+  - If message exists, return `{ decision: "block", reason: "[Leash Remote Message]\n\n{message}" }`
+  - This should inject the message when Claude finishes responding
 
 ### Android
-- Updated `AgentDetailScreen.kt`:
-  - Changed `animateScrollToItem` to `scrollToItem` for instant scrolling (much faster)
-  - Added elaborate diff styling with monospace fonts, colored backgrounds, and file header highlighting
-  - Added Snackbar feedback when messages are copied to clipboard
-  - Added message sent status handling
-- Updated `LeashWebSocketClient.kt`:
-  - Added `message_sent` and `error` WebSocket message handlers
-  - Added `MessageSentStatus` data class and SharedFlow for UI feedback
-- Updated `AgentRepository.kt` - Exposed `messageSentStatus` flow
+- Added `sendInterrupt()` to LeashWebSocketClient and AgentRepository
+- Added red Stop button in AgentDetailScreen app bar (top right)
+- Messages now show "Message queued" snackbar instead of clipboard
+
+## Known Issues / TODO for Next Session
+
+### BUG: Message queueing behavior is wrong
+**Problem:** Messages are being queued even when Claude is idle/waiting for input. The message doesn't appear in chat on phone or computer.
+
+**Expected behavior:**
+1. If Claude is **idle** (waiting for input) → message should be sent **immediately** (not queued)
+2. If Claude is **working** → message should be **queued** and injected when Claude finishes
+
+**Fix needed:**
+- Track Claude's state (idle vs working) in AgentManager
+- Use `Stop` event to mark as idle, `UserPromptSubmit`/`PreToolUse` to mark as working
+- In send endpoint: if idle, use a different mechanism (maybe the Stop hook won't fire if already stopped)
+- The Stop hook approach only works when Claude is actively working and then stops
+
+**Alternative approach to consider:**
+- When Claude is idle, the hook won't fire (nothing to stop)
+- May need to simulate user input somehow, or use a file-based polling approach
+- Could also consider using clipboard + auto-paste via PowerShell when idle
+
+### Files Changed This Session
+- `server/src/api/routes.ts` - Queue endpoints, interrupt endpoint
+- `server/src/websocket/handler.ts` - Queue and interrupt WebSocket handlers
+- `server/src/types/index.ts` - Added `interrupt` ClientMessage type
+- `~/.claude/hooks/leash_hook.js` - Stop hook checks queue
+- `android/.../LeashWebSocketClient.kt` - sendInterrupt(), queue handling
+- `android/.../AgentRepository.kt` - sendInterrupt()
+- `android/.../AgentDetailScreen.kt` - Interrupt button in app bar
 
 ## Architecture
 
-### Clipboard Messaging Flow
-1. User types message in Android app and taps Send
-2. WebSocket sends `send_message` to server with agentId and message
-3. Server copies message to Windows clipboard via PowerShell
-4. Server broadcasts activity event ("Message copied to clipboard")
-5. Server sends `message_sent` confirmation to sender
-6. Android shows Snackbar: "Paste (Ctrl+V) in Claude Code terminal"
-7. User pastes message in their Claude Code terminal
+### Current Message Flow (needs fix)
+```
+Android sends message → Server queues it → Stop hook checks queue
+                                           ↳ But Stop only fires when Claude FINISHES working
+                                           ↳ If Claude is idle, Stop never fires!
+```
 
-### Improved Diff Styling
-- File headers (Edit:, +++, ---) shown in blue with bold monospace font
-- Addition lines (+) shown in bright green with dark green background
-- Deletion lines (-) shown in bright red with dark red background
-- Context lines shown in gray with monospace font
-- Better detection to avoid false positives (markdown lists, etc.)
-
-## Key Files Changed
-- `server/src/websocket/handler.ts`
-- `server/src/api/routes.ts`
-- `server/src/types/index.ts`
-- `android/app/src/main/java/com/leash/app/ui/screens/AgentDetailScreen.kt`
-- `android/app/src/main/java/com/leash/app/data/LeashWebSocketClient.kt`
-- `android/app/src/main/java/com/leash/app/data/AgentRepository.kt`
+### Desired Message Flow
+```
+Android sends message → Server checks Claude state
+  ├─ If IDLE: Send immediately (simulate input somehow)
+  └─ If WORKING: Queue for Stop hook injection
+```
 
 ## Next Steps
-1. Test clipboard messaging end-to-end on physical device
-2. Add visual indicator while message is being sent
-3. Consider adding sound/vibration notification on clipboard copy
-4. Test with multiple concurrent agents
+1. Fix the idle vs working state detection
+2. Implement immediate send when Claude is idle
+3. Test the interrupt button functionality
+4. Test end-to-end message flow

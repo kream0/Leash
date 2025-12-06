@@ -1,64 +1,64 @@
 # TODO - Leash Development
 
-## Current Priority: Testing & Polish
+## Current Priority: Fix Remote Messaging
 
-### Phase 1: Initialization ✅ COMPLETE
-- [x] Design architecture
-- [x] Create project files (README, CLAUDE.md, PRD.md)
-- [x] Initialize git repo
-- [x] Create server project structure
-- [x] Create Android project structure
+### CRITICAL BUG TO FIX
+- [ ] **Message queueing only works when Claude is working, not when idle**
+  - Stop hook only fires when Claude finishes a task
+  - If Claude is idle/waiting, queued messages never get delivered
+  - Need to detect idle state and send immediately (clipboard+paste? or other method)
 
-### Phase 2: Bridge Server ✅ COMPLETE
-- [x] Express + WebSocket server setup
-- [x] Agent base adapter interface
-- [x] Claude Code adapter (terminal monitoring)
-- [x] Copilot adapter
-- [x] REST API endpoints
-- [x] WebSocket message handlers
+### Phase 1-6: ✅ COMPLETE
+(See previous sessions)
 
-### Phase 3: Android App ✅ COMPLETE
-- [x] Android project with Compose
-- [x] WebSocket client
-- [x] Agent list screen
-- [x] Agent detail screen with activity feed
-- [x] Message input component
-- [x] Connection status UI
+### Phase 7: Remote Messaging (IN PROGRESS)
+- [x] Add message queue system on server
+- [x] Add interrupt endpoint (ESC key to Claude window)
+- [x] Update Stop hook to check queue and inject messages
+- [x] Add interrupt button to Android app
+- [ ] **FIX: Detect idle vs working state**
+- [ ] **FIX: Send immediately when idle (not queue)**
+- [ ] Test interrupt button functionality
+- [ ] Test end-to-end remote messaging
 
-### Phase 4: Claude Code Hooks ✅ COMPLETE
-- [x] Create hook script (~/.claude/hooks/leash_hook.js) - GLOBAL
-- [x] Hook configuration (~/.claude/settings.json) - GLOBAL
-- [x] Multi-host fallback (localhost, 127.0.0.1, Docker hosts)
-- [x] Server endpoint for hook events (/api/hooks)
-- [x] Real-time relay to mobile clients
-- [x] Agent detector for auto-discovery
-
-### Phase 5: Real-time Chat ✅ COMPLETE
-- [x] QR code connection setup
-- [x] Build and install on device
-- [x] End-to-end testing with live Claude sessions
-- [x] Chat history API endpoint (GET /api/agents/:id/chat)
-- [x] Real-time transcript watching (TranscriptWatcher)
-- [x] WebSocket streaming of chat messages
-- [x] Android chat UI with Activity/Chat tabs
-- [x] Rich tool formatting (diffs, file names, commands)
-- [x] Git-style colored diffs in chat view
-- [x] Auto-scroll on tab switch
-
-### Phase 6: UX Polish ✅ COMPLETE
-- [x] Instant scroll-to-bottom (replaced slow animation)
-- [x] Elaborate diff styling (monospace, colored backgrounds, headers)
-- [x] Clipboard-based messaging (send from phone to Claude Code)
-- [x] Snackbar feedback for message sending
-
-### Phase 7: Testing & Stability
-- [ ] Test clipboard messaging end-to-end
-- [ ] Add visual indicator while message is being sent
+### Phase 8: Polish & Testing
 - [ ] Error handling & reconnection logic
 - [ ] Test with multiple concurrent agents
-- [ ] Consider sound/vibration notifications
 - [ ] Dark mode refinements
+- [ ] Update tracking files automation
 
 ---
 
-**Status:** Clipboard messaging implemented, ready for end-to-end testing
+## Technical Notes for Next Agent
+
+### Key Files for Remote Messaging Fix:
+1. `server/src/api/routes.ts` - Message queue logic, needs state check
+2. `server/src/agent-manager.ts` - Could track agent state (idle/working)
+3. `~/.claude/hooks/leash_hook.js` - Stop hook that checks queue
+4. `server/src/websocket/handler.ts` - WebSocket message handlers
+
+### Possible Solutions:
+1. **Track state in AgentManager:**
+   - On `UserPromptSubmit` or `PreToolUse` → mark as "working"
+   - On `Stop` → mark as "idle"
+   - In send endpoint: check state, if idle use clipboard+auto-paste
+
+2. **Auto-paste when idle:**
+   - Copy to clipboard
+   - Use PowerShell to send Ctrl+V to Claude window
+   - This simulates user pasting the message
+
+3. **Polling approach:**
+   - Write message to a file
+   - Have a background script that watches and pastes when Claude is idle
+
+### Current Hook Location:
+`C:\Users\Karim\.claude\hooks\leash_hook.js`
+
+### Server runs on:
+- WebSocket: `ws://192.168.1.12:3001/ws`
+- REST API: `http://192.168.1.12:3001/api`
+
+---
+
+**Status:** Remote messaging partially implemented, needs idle state handling fix

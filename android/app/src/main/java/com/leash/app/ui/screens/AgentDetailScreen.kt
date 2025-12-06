@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -154,6 +155,15 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
                                 }
                             },
                             actions = {
+                                // Interrupt button
+                                IconButton(
+                                    onClick = { repository.sendInterrupt(agentId) },
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Icon(Icons.Default.Stop, contentDescription = "Interrupt")
+                                }
                                 if (agent != null) {
                                     StatusIndicator(status = agent.status)
                                 }

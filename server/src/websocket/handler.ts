@@ -172,6 +172,10 @@ export class WebSocketHandler {
             case 'send_message':
                 this.handleSendMessage(ws, message);
                 break;
+
+            case 'interrupt':
+                this.handleInterrupt(ws, message);
+                break;
         }
     }
 
@@ -196,37 +200,110 @@ export class WebSocketHandler {
         }
 
         try {
-            // Copy message to clipboard using PowerShell (Windows)
-            const { exec } = await import('child_process');
-            const { promisify } = await import('util');
-            const execAsync = promisify(exec);
+            // Queue message via HTTP API (will be injected by Stop hook)
+            const http = await import('http');
 
-            const escapedMessage = text.replace(/"/g, '`"').replace(/\$/g, '`$');
-            await execAsync(`powershell -command "Set-Clipboard -Value \\"${escapedMessage}\\""`, { encoding: 'utf8' });
+            const payload = JSON.stringify({ message: text });
+            const options = {
+                hostname: 'localhost',
+                port: 3001,
+                path: `/api/agents/${encodeURIComponent(agentId)}/send`,
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(payload)
+                }
+            };
 
-            // Emit activity to all clients
-            const activityMessage = `📋 Message copied to clipboard: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`;
-            this.broadcast({
-                type: 'activity',
-                agentId,
-                content: activityMessage,
-                timestamp: Date.now()
+            await new Promise<void>((resolve, reject) => {
+                const req = http.request(options, (res) => {
+                    let data = '';
+                    res.on('data', chunk => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            const result = JSON.parse(data);
+                            // Send confirmation to the sender
+                            this.send(ws, {
+                                type: 'message_sent',
+                                agentId,
+                                success: true,
+                                hint: `Message queued (${result.queueSize} in queue)`
+                            } as unknown as ServerMessage);
+                            resolve();
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                });
+                req.on('error', reject);
+                req.write(payload);
+                req.end();
             });
 
-            // Send confirmation to the sender
-            this.send(ws, {
-                type: 'message_sent',
-                agentId,
-                success: true,
-                hint: 'Paste (Ctrl+V) in Claude Code terminal'
-            } as unknown as ServerMessage);
-
-            console.log(`[WebSocket] Message copied to clipboard for ${agentId}: ${text.substring(0, 50)}...`);
+            console.log(`[WebSocket] Message queued for ${agentId}: ${text.substring(0, 50)}...`);
         } catch (error) {
-            console.error('[WebSocket] Failed to copy to clipboard:', error);
+            console.error('[WebSocket] Failed to queue message:', error);
             this.send(ws, {
                 type: 'error',
-                error: 'Failed to copy message to clipboard'
+                error: 'Failed to queue message'
+            } as unknown as ServerMessage);
+        }
+    }
+
+    private async handleInterrupt(ws: WebSocket, message: ClientMessage): Promise<void> {
+        const { agentId } = message as { type: string; agentId: string };
+
+        if (!agentId) {
+            this.send(ws, {
+                type: 'error',
+                error: 'Missing agentId'
+            } as unknown as ServerMessage);
+            return;
+        }
+
+        const agent = this.agentManager.getAgent(agentId);
+        if (!agent) {
+            this.send(ws, {
+                type: 'error',
+                error: 'Agent not found'
+            } as unknown as ServerMessage);
+            return;
+        }
+
+        try {
+            // Call interrupt API
+            const http = await import('http');
+
+            const options = {
+                hostname: 'localhost',
+                port: 3001,
+                path: `/api/agents/${encodeURIComponent(agentId)}/interrupt`,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            };
+
+            await new Promise<void>((resolve, reject) => {
+                const req = http.request(options, (res) => {
+                    res.on('data', () => {});
+                    res.on('end', () => {
+                        this.send(ws, {
+                            type: 'interrupt_sent',
+                            agentId,
+                            success: true
+                        } as unknown as ServerMessage);
+                        resolve();
+                    });
+                });
+                req.on('error', reject);
+                req.end();
+            });
+
+            console.log(`[WebSocket] Interrupt sent for ${agentId}`);
+        } catch (error) {
+            console.error('[WebSocket] Failed to send interrupt:', error);
+            this.send(ws, {
+                type: 'error',
+                error: 'Failed to send interrupt'
             } as unknown as ServerMessage);
         }
     }

@@ -7,6 +7,9 @@ import type { ChatMessage } from '../types/index.js';
 
 const execAsync = promisify(exec);
 
+// Message queue for each agent (messages sent from mobile to be injected)
+const messageQueues: Map<string, string[]> = new Map();
+
 /**
  * Read chat history from a transcript file.
  * Supports both local files and WSL paths.
@@ -174,7 +177,7 @@ export function createRoutes(agentManager: AgentManager): Router {
         }
     });
 
-    // POST /api/agents/:id/send - Send a message to a Claude Code session via clipboard
+    // POST /api/agents/:id/send - Queue a message for Claude Code (will be injected via Stop hook)
     router.post('/agents/:id/send', async (req: Request, res: Response) => {
         const agent = agentManager.getAgent(req.params.id);
         if (!agent) {
@@ -188,26 +191,85 @@ export function createRoutes(agentManager: AgentManager): Router {
             return;
         }
 
-        try {
-            // Copy message to clipboard using PowerShell (Windows)
-            // The message is escaped for PowerShell
-            const escapedMessage = message.replace(/"/g, '`"').replace(/\$/g, '`$');
-            await execAsync(`powershell -command "Set-Clipboard -Value \\"${escapedMessage}\\""`, { encoding: 'utf8' });
+        // Add message to queue
+        if (!messageQueues.has(agent.id)) {
+            messageQueues.set(agent.id, []);
+        }
+        messageQueues.get(agent.id)!.push(message);
 
-            // Log and emit activity about the clipboard message
-            const activityMessage = `📋 Message copied to clipboard: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`;
+        // Log and emit activity
+        const queueSize = messageQueues.get(agent.id)!.length;
+        const activityMessage = `📨 Message queued (${queueSize} in queue): "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`;
+        agentManager.recordActivity(agent.id, activityMessage);
+        agentManager.emit('activity', agent.id, activityMessage);
+
+        console.log(`[Routes] Message queued for ${agent.id}: ${message.substring(0, 50)}...`);
+
+        res.json({
+            success: true,
+            message: 'Message queued. Will be sent when Claude finishes current task.',
+            queueSize
+        });
+    });
+
+    // GET /api/agents/:id/queue - Get pending messages for an agent (called by Stop hook)
+    router.get('/agents/:id/queue', (req: Request, res: Response) => {
+        const agentId = req.params.id;
+        const queue = messageQueues.get(agentId) || [];
+
+        if (queue.length > 0) {
+            // Pop the first message
+            const message = queue.shift()!;
+            console.log(`[Routes] Dequeued message for ${agentId}: ${message.substring(0, 50)}...`);
+            res.json({ hasMessage: true, message, remainingCount: queue.length });
+        } else {
+            res.json({ hasMessage: false, message: null, remainingCount: 0 });
+        }
+    });
+
+    // GET /api/agents/:id/queue/peek - Peek at queue without removing (for UI)
+    router.get('/agents/:id/queue/peek', (req: Request, res: Response) => {
+        const agentId = req.params.id;
+        const queue = messageQueues.get(agentId) || [];
+        res.json({ count: queue.length, messages: queue });
+    });
+
+    // POST /api/agents/:id/interrupt - Send interrupt signal (ESC) to Claude Code
+    router.post('/agents/:id/interrupt', async (req: Request, res: Response) => {
+        const agent = agentManager.getAgent(req.params.id);
+        if (!agent) {
+            res.status(404).json({ error: 'Agent not found' });
+            return;
+        }
+
+        try {
+            // Find the Claude Code terminal window and send ESC key
+            // Using PowerShell with Windows Forms to send keys
+            const psScript = `
+Add-Type -AssemblyName System.Windows.Forms
+$processes = Get-Process | Where-Object { $_.MainWindowTitle -match 'claude|Claude' -or $_.ProcessName -eq 'claude' }
+foreach ($proc in $processes) {
+    if ($proc.MainWindowHandle -ne 0) {
+        [Microsoft.VisualBasic.Interaction]::AppActivate($proc.Id)
+        Start-Sleep -Milliseconds 100
+        [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
+        break
+    }
+}
+`;
+            await execAsync(`powershell -command "${psScript.replace(/\n/g, '; ')}"`, { encoding: 'utf8' });
+
+            const activityMessage = '⛔ Interrupt signal sent';
             agentManager.recordActivity(agent.id, activityMessage);
             agentManager.emit('activity', agent.id, activityMessage);
 
-            res.json({
-                success: true,
-                message: 'Message copied to clipboard. Paste (Ctrl+V) in Claude Code terminal.',
-                copiedMessage: message
-            });
+            console.log(`[Routes] Interrupt sent for ${agent.id}`);
+
+            res.json({ success: true, message: 'Interrupt signal sent' });
         } catch (error) {
-            console.error('[Routes] Error copying to clipboard:', error);
+            console.error('[Routes] Error sending interrupt:', error);
             res.status(500).json({
-                error: 'Failed to copy to clipboard',
+                error: 'Failed to send interrupt',
                 details: error instanceof Error ? error.message : 'Unknown error'
             });
         }

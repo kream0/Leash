@@ -71,7 +71,7 @@ class LeashWebSocketClient(
     val chatMessages: SharedFlow<Pair<String, ChatMessage>> = _chatMessages.asSharedFlow()
 
     // SharedFlow for message send status (clipboard copies)
-    private val _messageSentStatus = MutableSharedFlow<MessageSentStatus>(replay = 1)
+    private val _messageSentStatus = MutableSharedFlow<MessageSentStatus>(extraBufferCapacity = 1)
     val messageSentStatus: SharedFlow<MessageSentStatus> = _messageSentStatus.asSharedFlow()
 
     fun connect() {
@@ -116,6 +116,14 @@ class LeashWebSocketClient(
             "type" to "send_message",
             "agentId" to agentId,
             "message" to message
+        ))
+        webSocket?.send(json)
+    }
+
+    fun sendInterrupt(agentId: String) {
+        val json = gson.toJson(mapOf(
+            "type" to "interrupt",
+            "agentId" to agentId
         ))
         webSocket?.send(json)
     }
