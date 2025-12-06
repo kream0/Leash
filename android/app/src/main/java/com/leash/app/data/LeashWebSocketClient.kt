@@ -111,11 +111,12 @@ class LeashWebSocketClient(
         _activitiesPerAgent.value = emptyMap()
     }
 
-    fun sendMessage(agentId: String, message: String) {
+    fun sendMessage(agentId: String, message: String, instant: Boolean = true) {
         val json = gson.toJson(mapOf(
             "type" to "send_message",
             "agentId" to agentId,
-            "message" to message
+            "message" to message,
+            "instant" to instant
         ))
         webSocket?.send(json)
     }

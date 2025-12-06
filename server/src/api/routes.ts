@@ -2,10 +2,17 @@ import { Router, type Request, type Response } from 'express';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 import type { AgentManager } from '../agent-manager.js';
 import type { ChatMessage } from '../types/index.js';
 
 const execAsync = promisify(exec);
+
+// Get the directory of this file for locating scripts
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const SCRIPTS_DIR = path.resolve(__dirname, '../../scripts');
 
 // Message queue for each agent (messages sent from mobile to be injected)
 const messageQueues: Map<string, string[]> = new Map();
@@ -177,7 +184,10 @@ export function createRoutes(agentManager: AgentManager): Router {
         }
     });
 
-    // POST /api/agents/:id/send - Queue a message for Claude Code (will be injected via Stop hook)
+    // POST /api/agents/:id/send - Send a message to Claude Code
+    // Options:
+    //   - instant: true  -> Paste directly into terminal (immediate)
+    //   - instant: false -> Queue for hook injection (default, waits for next hook)
     router.post('/agents/:id/send', async (req: Request, res: Response) => {
         const agent = agentManager.getAgent(req.params.id);
         if (!agent) {
@@ -185,13 +195,53 @@ export function createRoutes(agentManager: AgentManager): Router {
             return;
         }
 
-        const { message } = req.body;
+        const { message, instant = false } = req.body;
         if (!message || typeof message !== 'string') {
             res.status(400).json({ error: 'Message is required' });
             return;
         }
 
-        // Add message to queue
+        // Instant mode: Copy to clipboard and paste into Claude's terminal
+        if (instant) {
+            try {
+                // Use external PowerShell script to avoid escaping issues
+                const scriptPath = path.join(SCRIPTS_DIR, 'send-to-claude.ps1');
+                // Escape the message for PowerShell: escape double quotes and backticks
+                const escapedMessage = message.replace(/"/g, '\\"').replace(/`/g, '``');
+                const command = `powershell -ExecutionPolicy Bypass -File "${scriptPath}" -Message "${escapedMessage}"`;
+
+                console.log(`[Routes] Running instant send script for ${agent.id}`);
+                const { stdout, stderr } = await execAsync(command, { encoding: 'utf8' });
+
+                if (stderr) {
+                    console.error('[Routes] Script stderr:', stderr);
+                }
+                if (stdout) {
+                    console.log('[Routes] Script stdout:', stdout);
+                }
+
+                const activityMessage = `📤 Instant message sent: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`;
+                agentManager.recordActivity(agent.id, activityMessage);
+                agentManager.emit('activity', agent.id, activityMessage);
+
+                console.log(`[Routes] Instant message sent to ${agent.id}: ${message.substring(0, 50)}...`);
+
+                res.json({
+                    success: true,
+                    message: 'Message sent instantly to Claude terminal.',
+                    method: 'instant'
+                });
+            } catch (error) {
+                console.error('[Routes] Error sending instant message:', error);
+                res.status(500).json({
+                    error: 'Failed to send instant message',
+                    details: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+            return;
+        }
+
+        // Queue mode (default): Add to queue for hook injection
         if (!messageQueues.has(agent.id)) {
             messageQueues.set(agent.id, []);
         }
@@ -208,6 +258,7 @@ export function createRoutes(agentManager: AgentManager): Router {
         res.json({
             success: true,
             message: 'Message queued. Will be sent when Claude finishes current task.',
+            method: 'queued',
             queueSize
         });
     });
@@ -243,21 +294,19 @@ export function createRoutes(agentManager: AgentManager): Router {
         }
 
         try {
-            // Find the Claude Code terminal window and send ESC key
-            // Using PowerShell with Windows Forms to send keys
-            const psScript = `
-Add-Type -AssemblyName System.Windows.Forms
-$processes = Get-Process | Where-Object { $_.MainWindowTitle -match 'claude|Claude' -or $_.ProcessName -eq 'claude' }
-foreach ($proc in $processes) {
-    if ($proc.MainWindowHandle -ne 0) {
-        [Microsoft.VisualBasic.Interaction]::AppActivate($proc.Id)
-        Start-Sleep -Milliseconds 100
-        [System.Windows.Forms.SendKeys]::SendWait('{ESC}')
-        break
-    }
-}
-`;
-            await execAsync(`powershell -command "${psScript.replace(/\n/g, '; ')}"`, { encoding: 'utf8' });
+            // Use dedicated PowerShell script to send ESC key to Claude window
+            const scriptPath = path.join(SCRIPTS_DIR, 'interrupt-claude.ps1');
+            const command = `powershell -ExecutionPolicy Bypass -File "${scriptPath}"`;
+
+            console.log(`[Routes] Running interrupt script for ${agent.id}`);
+            const { stdout, stderr } = await execAsync(command, { encoding: 'utf8' });
+
+            if (stderr) {
+                console.error('[Routes] Interrupt script stderr:', stderr);
+            }
+            if (stdout) {
+                console.log('[Routes] Interrupt script stdout:', stdout);
+            }
 
             const activityMessage = '⛔ Interrupt signal sent';
             agentManager.recordActivity(agent.id, activityMessage);

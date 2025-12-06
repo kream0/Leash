@@ -62,3 +62,9 @@ Open `android/` in Android Studio. Use standard Gradle commands.
 - **Examples**:
   - `feat(server): add WebSocket connection handler`
   - `fix(android): resolve connection timeout issue`
+
+## Remote Monitoring (Leash)
+
+This project uses Leash for remote monitoring. The system may inject messages via hooks.
+
+**If you see `[Leash Remote Message]`**: This is a priority message from the user sent via mobile. Read it immediately and respond before continuing your previous task. Acknowledge receipt of the message in your response.

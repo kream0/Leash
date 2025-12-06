@@ -180,7 +180,7 @@ export class WebSocketHandler {
     }
 
     private async handleSendMessage(ws: WebSocket, message: ClientMessage): Promise<void> {
-        const { agentId, message: text } = message as { type: string; agentId: string; message: string };
+        const { agentId, message: text, instant = false } = message as { type: string; agentId: string; message: string; instant?: boolean };
 
         if (!agentId || !text) {
             this.send(ws, {
@@ -200,10 +200,10 @@ export class WebSocketHandler {
         }
 
         try {
-            // Queue message via HTTP API (will be injected by Stop hook)
+            // Send message via HTTP API (instant or queued based on flag)
             const http = await import('http');
 
-            const payload = JSON.stringify({ message: text });
+            const payload = JSON.stringify({ message: text, instant });
             const options = {
                 hostname: 'localhost',
                 port: 3001,
@@ -223,11 +223,15 @@ export class WebSocketHandler {
                         try {
                             const result = JSON.parse(data);
                             // Send confirmation to the sender
+                            const hint = result.method === 'instant'
+                                ? 'Message sent instantly'
+                                : `Message queued (${result.queueSize} in queue)`;
                             this.send(ws, {
                                 type: 'message_sent',
                                 agentId,
                                 success: true,
-                                hint: `Message queued (${result.queueSize} in queue)`
+                                method: result.method,
+                                hint
                             } as unknown as ServerMessage);
                             resolve();
                         } catch (e) {
@@ -240,12 +244,12 @@ export class WebSocketHandler {
                 req.end();
             });
 
-            console.log(`[WebSocket] Message queued for ${agentId}: ${text.substring(0, 50)}...`);
+            console.log(`[WebSocket] Message ${instant ? 'sent instantly' : 'queued'} for ${agentId}: ${text.substring(0, 50)}...`);
         } catch (error) {
-            console.error('[WebSocket] Failed to queue message:', error);
+            console.error('[WebSocket] Failed to send message:', error);
             this.send(ws, {
                 type: 'error',
-                error: 'Failed to queue message'
+                error: 'Failed to send message'
             } as unknown as ServerMessage);
         }
     }

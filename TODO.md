@@ -1,64 +1,57 @@
 # TODO - Leash Development
 
-## Current Priority: Fix Remote Messaging
+## Current Status: Android App Polish COMPLETE
 
-### CRITICAL BUG TO FIX
-- [ ] **Message queueing only works when Claude is working, not when idle**
-  - Stop hook only fires when Claude finishes a task
-  - If Claude is idle/waiting, queued messages never get delivered
-  - Need to detect idle state and send immediately (clipboard+paste? or other method)
+### Phase 9: Android App UX Improvements - COMPLETE
+- [x] Dark loading screen (no white flash)
+- [x] Auto-connect when configured
+- [x] Remove Activity tab - Chat only
+- [x] Settings menu with Autopilot and Disconnect
+- [x] Fix ISO date formatting (HH:mm for today)
+- [x] Replace ALL emojis with Material icons
+- [x] Improve diff detection (requires Edit: header)
+- [x] Collapsible diffs (10+ lines, collapsed by default)
+- [x] Continue button (sends "continue")
+- [x] Autopilot toggle (auto-continue on Stop)
 
-### Phase 1-6: ✅ COMPLETE
-(See previous sessions)
-
-### Phase 7: Remote Messaging (IN PROGRESS)
-- [x] Add message queue system on server
-- [x] Add interrupt endpoint (ESC key to Claude window)
-- [x] Update Stop hook to check queue and inject messages
-- [x] Add interrupt button to Android app
-- [ ] **FIX: Detect idle vs working state**
-- [ ] **FIX: Send immediately when idle (not queue)**
-- [ ] Test interrupt button functionality
-- [ ] Test end-to-end remote messaging
+### Phase 7: Remote Messaging - COMPLETE
+- [x] Message queue system on server
+- [x] Interrupt endpoint (ESC key)
+- [x] Hook-based message injection
+- [x] All hooks registered for maximum retrieval
+- [x] Interrupt button working
+- [x] Instant messaging via clipboard
 
 ### Phase 8: Polish & Testing
+- [x] PayloadTooLargeError fix (10mb limit)
 - [ ] Error handling & reconnection logic
 - [ ] Test with multiple concurrent agents
 - [ ] Dark mode refinements
-- [ ] Update tracking files automation
 
 ---
 
-## Technical Notes for Next Agent
+## Technical Notes
 
-### Key Files for Remote Messaging Fix:
-1. `server/src/api/routes.ts` - Message queue logic, needs state check
-2. `server/src/agent-manager.ts` - Could track agent state (idle/working)
-3. `~/.claude/hooks/leash_hook.js` - Stop hook that checks queue
-4. `server/src/websocket/handler.ts` - WebSocket message handlers
+### Hook Message Injection
+| Hook Type | Injection Method | Behavior |
+|-----------|-----------------|----------|
+| UserPromptSubmit | additionalContext | Non-blocking, adds to prompt |
+| SessionStart | additionalContext | Non-blocking, adds at start |
+| Stop | decision: block | Continues Claude with message |
+| PreToolUse | decision: block | Interrupts before tool |
+| PostToolUse | decision: block | Interrupts after tool |
+| SubagentStop | decision: block | Continues subagent |
 
-### Possible Solutions:
-1. **Track state in AgentManager:**
-   - On `UserPromptSubmit` or `PreToolUse` → mark as "working"
-   - On `Stop` → mark as "idle"
-   - In send endpoint: check state, if idle use clipboard+auto-paste
+### Key Files
+- `~/.claude/hooks/leash_hook.js` - Hook script
+- `~/.claude/settings.json` - Hook configuration
+- `server/scripts/interrupt-claude.ps1` - ESC key sender
+- `server/scripts/send-to-claude.ps1` - Instant message sender
 
-2. **Auto-paste when idle:**
-   - Copy to clipboard
-   - Use PowerShell to send Ctrl+V to Claude window
-   - This simulates user pasting the message
-
-3. **Polling approach:**
-   - Write message to a file
-   - Have a background script that watches and pastes when Claude is idle
-
-### Current Hook Location:
-`C:\Users\Karim\.claude\hooks\leash_hook.js`
-
-### Server runs on:
+### Server endpoints
 - WebSocket: `ws://192.168.1.12:3001/ws`
 - REST API: `http://192.168.1.12:3001/api`
 
 ---
 
-**Status:** Remote messaging partially implemented, needs idle state handling fix
+**Status:** Core features complete. Ready for testing and polish.

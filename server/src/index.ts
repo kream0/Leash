@@ -79,8 +79,8 @@ async function main() {
     const app = express();
     const server = createServer(app);
 
-    // Middleware
-    app.use(express.json());
+    // Middleware - increase limit for large hook payloads
+    app.use(express.json({ limit: '10mb' }));
 
     // CORS for mobile app
     app.use((_req, res, next) => {

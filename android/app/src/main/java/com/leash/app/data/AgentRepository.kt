@@ -26,8 +26,8 @@ class AgentRepository(private val webSocketClient: LeashWebSocketClient = LeashW
         webSocketClient.disconnect()
     }
 
-    fun sendMessage(agentId: String, message: String) {
-        webSocketClient.sendMessage(agentId, message)
+    fun sendMessage(agentId: String, message: String, instant: Boolean = true) {
+        webSocketClient.sendMessage(agentId, message, instant)
     }
 
     fun sendInterrupt(agentId: String) {
