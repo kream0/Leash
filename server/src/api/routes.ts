@@ -174,7 +174,7 @@ export function createRoutes(agentManager: AgentManager): Router {
         }
     });
 
-    // POST /api/agents/:id/send - Send a message to a Claude Code session
+    // POST /api/agents/:id/send - Send a message to a Claude Code session via clipboard
     router.post('/agents/:id/send', async (req: Request, res: Response) => {
         const agent = agentManager.getAgent(req.params.id);
         if (!agent) {
@@ -188,13 +188,29 @@ export function createRoutes(agentManager: AgentManager): Router {
             return;
         }
 
-        // For now, we can't directly send to Claude Code - it doesn't have an input API
-        // This would require a different approach like clipboard or file-based communication
-        // For MVP, we'll return an error explaining the limitation
-        res.status(501).json({
-            error: 'Direct message sending not yet supported',
-            hint: 'Claude Code CLI does not expose an input API. Future versions may use clipboard or file-based messaging.'
-        });
+        try {
+            // Copy message to clipboard using PowerShell (Windows)
+            // The message is escaped for PowerShell
+            const escapedMessage = message.replace(/"/g, '`"').replace(/\$/g, '`$');
+            await execAsync(`powershell -command "Set-Clipboard -Value \\"${escapedMessage}\\""`, { encoding: 'utf8' });
+
+            // Log and emit activity about the clipboard message
+            const activityMessage = `📋 Message copied to clipboard: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`;
+            agentManager.recordActivity(agent.id, activityMessage);
+            agentManager.emit('activity', agent.id, activityMessage);
+
+            res.json({
+                success: true,
+                message: 'Message copied to clipboard. Paste (Ctrl+V) in Claude Code terminal.',
+                copiedMessage: message
+            });
+        } catch (error) {
+            console.error('[Routes] Error copying to clipboard:', error);
+            res.status(500).json({
+                error: 'Failed to copy to clipboard',
+                details: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
     });
 
     return router;

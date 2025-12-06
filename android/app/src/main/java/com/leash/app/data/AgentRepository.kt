@@ -16,6 +16,7 @@ class AgentRepository(private val webSocketClient: LeashWebSocketClient = LeashW
     val chatMessagesPerAgent: StateFlow<Map<String, List<ChatMessage>>> =
             webSocketClient.chatMessagesPerAgent
     val chatMessages: SharedFlow<Pair<String, ChatMessage>> = webSocketClient.chatMessages
+    val messageSentStatus: SharedFlow<MessageSentStatus> = webSocketClient.messageSentStatus
 
     fun connect() {
         webSocketClient.connect()

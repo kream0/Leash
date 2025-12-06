@@ -1,54 +1,54 @@
 # Last Session
 
 **Date:** 2025-12-06
-**Focus:** Real-time Chat Streaming & UI Enhancements
+**Focus:** Android UX Improvements & Clipboard Messaging
 
 ## Completed
 
 ### Server
-- Created `transcript-watcher.ts` - Real-time JSONL file watcher for Claude Code transcripts
-- Updated `agent-manager.ts` - Integrated transcript watcher, emits `chat_message` events
-- Updated `websocket/handler.ts` - Forwards chat messages to clients, stores chat history
-- Updated `types/index.ts` - Added `ChatMessageEvent` type
-- Implemented rich tool formatting (Edit shows diffs, Read/Write show file names, etc.)
+- Updated `websocket/handler.ts` - Added `send_message` WebSocket handler for clipboard messaging
+- Updated `api/routes.ts` - Implemented clipboard-based message sending via PowerShell
+- Updated `types/index.ts` - Added `send_message` to ClientMessage type
 
 ### Android
-- Added `ChatMessage.kt` data class
-- Updated `LeashWebSocketClient.kt` - Handles `chat_message` WebSocket events
-- Updated `AgentRepository.kt` - Exposes chat message streams
 - Updated `AgentDetailScreen.kt`:
-  - Real-time chat messages via WebSocket (no REST polling)
-  - Auto-scroll to bottom when switching to Chat tab
-  - Full-width chat bubbles (no text truncation)
-  - Git-style colored diffs (red for deletions, green for additions)
-- Added `material-icons-extended` dependency for Chat icon
+  - Changed `animateScrollToItem` to `scrollToItem` for instant scrolling (much faster)
+  - Added elaborate diff styling with monospace fonts, colored backgrounds, and file header highlighting
+  - Added Snackbar feedback when messages are copied to clipboard
+  - Added message sent status handling
+- Updated `LeashWebSocketClient.kt`:
+  - Added `message_sent` and `error` WebSocket message handlers
+  - Added `MessageSentStatus` data class and SharedFlow for UI feedback
+- Updated `AgentRepository.kt` - Exposed `messageSentStatus` flow
 
 ## Architecture
 
-### Real-time Chat Flow
-1. Claude Code writes to JSONL transcript file
-2. `TranscriptWatcher` polls file every 1 second for new entries
-3. New messages emitted via `AgentManager.emit('chat_message', ...)`
-4. `WebSocketHandler` broadcasts to all connected clients
-5. Android app receives and displays in real-time
+### Clipboard Messaging Flow
+1. User types message in Android app and taps Send
+2. WebSocket sends `send_message` to server with agentId and message
+3. Server copies message to Windows clipboard via PowerShell
+4. Server broadcasts activity event ("Message copied to clipboard")
+5. Server sends `message_sent` confirmation to sender
+6. Android shows Snackbar: "Paste (Ctrl+V) in Claude Code terminal"
+7. User pastes message in their Claude Code terminal
 
-### Tool Display Formatting
-- Edit: Shows filename + diff with `-` and `+` lines
-- Write: Shows filename + content preview
-- Read: Shows filename
-- Bash: Shows description or command
-- Grep/Glob: Shows pattern
-- WebFetch/WebSearch: Shows URL/query
+### Improved Diff Styling
+- File headers (Edit:, +++, ---) shown in blue with bold monospace font
+- Addition lines (+) shown in bright green with dark green background
+- Deletion lines (-) shown in bright red with dark red background
+- Context lines shown in gray with monospace font
+- Better detection to avoid false positives (markdown lists, etc.)
 
 ## Key Files Changed
-- `server/src/transcript-watcher.ts` (new)
-- `server/src/agent-manager.ts`
 - `server/src/websocket/handler.ts`
-- `android/app/src/main/java/com/leash/app/model/ChatMessage.kt` (new)
-- `android/app/src/main/java/com/leash/app/data/LeashWebSocketClient.kt`
+- `server/src/api/routes.ts`
+- `server/src/types/index.ts`
 - `android/app/src/main/java/com/leash/app/ui/screens/AgentDetailScreen.kt`
+- `android/app/src/main/java/com/leash/app/data/LeashWebSocketClient.kt`
+- `android/app/src/main/java/com/leash/app/data/AgentRepository.kt`
 
 ## Next Steps
-1. Add pull-to-refresh for chat history
-2. Error handling & reconnection logic
-3. Test with multiple agents
+1. Test clipboard messaging end-to-end on physical device
+2. Add visual indicator while message is being sent
+3. Consider adding sound/vibration notification on clipboard copy
+4. Test with multiple concurrent agents

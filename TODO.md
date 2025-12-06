@@ -1,6 +1,6 @@
 # TODO - Leash Development
 
-## Current Priority: Polish & Testing
+## Current Priority: Testing & Polish
 
 ### Phase 1: Initialization ✅ COMPLETE
 - [x] Design architecture
@@ -45,13 +45,20 @@
 - [x] Git-style colored diffs in chat view
 - [x] Auto-scroll on tab switch
 
-### Phase 6: Polish & Stability
-- [ ] Pull-to-refresh for chat history
+### Phase 6: UX Polish ✅ COMPLETE
+- [x] Instant scroll-to-bottom (replaced slow animation)
+- [x] Elaborate diff styling (monospace, colored backgrounds, headers)
+- [x] Clipboard-based messaging (send from phone to Claude Code)
+- [x] Snackbar feedback for message sending
+
+### Phase 7: Testing & Stability
+- [ ] Test clipboard messaging end-to-end
+- [ ] Add visual indicator while message is being sent
 - [ ] Error handling & reconnection logic
 - [ ] Test with multiple concurrent agents
-- [ ] UI animations and transitions
-- [ ] Dark mode support
+- [ ] Consider sound/vibration notifications
+- [ ] Dark mode refinements
 
 ---
 
-**Status:** Real-time chat streaming complete with colored diffs
+**Status:** Clipboard messaging implemented, ready for end-to-end testing

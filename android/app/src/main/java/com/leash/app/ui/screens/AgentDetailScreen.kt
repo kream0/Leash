@@ -21,11 +21,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import com.leash.app.data.AgentRepository
+import com.leash.app.data.MessageSentStatus
 import com.leash.app.model.AgentActivity
 import com.leash.app.model.AgentStatus
 import com.leash.app.model.ChatMessage
@@ -58,20 +61,21 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
     val activityListState = rememberLazyListState()
     val chatListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    // Initialize with stored activities
+    // Initialize with stored activities - instant scroll
     LaunchedEffect(agentId, storedActivities) {
         activities = storedActivities
         if (activities.isNotEmpty()) {
-            coroutineScope.launch { activityListState.animateScrollToItem(activities.size) }
+            coroutineScope.launch { activityListState.scrollToItem(activities.size) }
         }
     }
 
-    // Initialize with stored chat messages (real-time)
+    // Initialize with stored chat messages (real-time) - instant scroll
     LaunchedEffect(agentId, storedChatMessages) {
         chatMessages = storedChatMessages
         if (chatMessages.isNotEmpty() && selectedTab == ViewTab.CHAT) {
-            coroutineScope.launch { chatListState.animateScrollToItem(chatMessages.size) }
+            coroutineScope.launch { chatListState.scrollToItem(chatMessages.size) }
         }
     }
 
@@ -81,7 +85,7 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
         repository.activities.collect { activity ->
             if (activity.agentId == agentId) {
                 activities = activities + activity
-                coroutineScope.launch { activityListState.animateScrollToItem(activities.size) }
+                coroutineScope.launch { activityListState.scrollToItem(activities.size) }
             }
         }
     }
@@ -94,21 +98,36 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
                 if (chatMessages.none { it.timestamp == message.timestamp && it.content == message.content }) {
                     chatMessages = chatMessages + message
                     if (selectedTab == ViewTab.CHAT) {
-                        coroutineScope.launch { chatListState.animateScrollToItem(chatMessages.size) }
+                        coroutineScope.launch { chatListState.scrollToItem(chatMessages.size) }
                     }
                 }
             }
         }
     }
 
-    // Auto-scroll to bottom when switching to Chat tab
+    // Auto-scroll to bottom when switching to Chat tab - instant scroll
     LaunchedEffect(selectedTab) {
         if (selectedTab == ViewTab.CHAT && chatMessages.isNotEmpty()) {
-            coroutineScope.launch { chatListState.animateScrollToItem(chatMessages.size) }
+            coroutineScope.launch { chatListState.scrollToItem(chatMessages.size) }
+        }
+    }
+
+    // Listen for message sent status (clipboard)
+    LaunchedEffect(agentId) {
+        repository.messageSentStatus.collect { status ->
+            if (status.agentId == agentId || status.agentId.isEmpty()) {
+                val message = if (status.success) {
+                    "📋 ${status.hint}"
+                } else {
+                    "❌ ${status.hint}"
+                }
+                snackbarHostState.showSnackbar(message, duration = SnackbarDuration.Short)
+            }
         }
     }
 
     Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 Column {
                     TopAppBar(
@@ -285,11 +304,14 @@ private fun ActivityBubble(activity: AgentActivity) {
     }
 }
 
-// Git diff colors
+// Git diff colors - more elaborate styling
 private val DiffAddColor = Color(0xFF22863A) // Green for additions
 private val DiffRemoveColor = Color(0xFFCB2431) // Red for deletions
-private val DiffAddBgColor = Color(0xFFE6FFEC) // Light green background
-private val DiffRemoveBgColor = Color(0xFFFFEBE9) // Light red background
+private val DiffAddBgColor = Color(0xFF1B4721) // Dark green background for dark theme
+private val DiffRemoveBgColor = Color(0xFF4A1D1D) // Dark red background for dark theme
+private val DiffHeaderColor = Color(0xFF58A6FF) // Blue for file headers
+private val DiffContextColor = Color(0xFF8B949E) // Gray for context/unchanged lines
+private val DiffLineNumberColor = Color(0xFF6E7681) // Dim color for line numbers
 
 @Composable
 private fun ChatBubble(message: ChatMessage) {
@@ -318,10 +340,10 @@ private fun ChatBubble(message: ChatMessage) {
                 color = if (isUser) LeashPrimary else MaterialTheme.colorScheme.surfaceVariant,
                 modifier = Modifier.fillMaxWidth()
         ) {
-            // Check if content contains diff lines
-            val hasDiff = message.content.contains("\n- ") || message.content.contains("\n+ ")
+            // Check if content contains diff lines (various patterns)
+            val hasDiff = !isUser && containsDiffContent(message.content)
 
-            if (hasDiff && !isUser) {
+            if (hasDiff) {
                 // Render with diff coloring
                 DiffText(
                         text = message.content,
@@ -347,28 +369,115 @@ private fun ChatBubble(message: ChatMessage) {
     }
 }
 
+/**
+ * Detect if content contains diff-like patterns
+ */
+private fun containsDiffContent(text: String): Boolean {
+    val lines = text.split("\n")
+    var addCount = 0
+    var removeCount = 0
+
+    for (line in lines) {
+        val trimmed = line.trimStart()
+        when {
+            trimmed.startsWith("-") && !trimmed.startsWith("---") && !trimmed.startsWith("- [") -> removeCount++
+            trimmed.startsWith("+") && !trimmed.startsWith("+++") -> addCount++
+        }
+    }
+
+    // Consider it a diff if there's at least one add or remove line
+    return addCount > 0 || removeCount > 0
+}
+
+/**
+ * Determines the type of diff line for styling
+ */
+private enum class DiffLineType {
+    ADDITION,      // Lines starting with +
+    DELETION,      // Lines starting with -
+    FILE_HEADER,   // Lines with file paths (Edit:, ---, +++)
+    CONTEXT,       // Unchanged context lines
+    NORMAL         // Regular text
+}
+
+private fun getDiffLineType(line: String): DiffLineType {
+    val trimmed = line.trimStart()
+    return when {
+        // File headers
+        trimmed.startsWith("Edit:") ||
+        trimmed.startsWith("File:") ||
+        trimmed.startsWith("---") ||
+        trimmed.startsWith("+++") ||
+        trimmed.startsWith("@@") -> DiffLineType.FILE_HEADER
+
+        // Additions (but not +++ header)
+        trimmed.startsWith("+") && !trimmed.startsWith("+++") -> DiffLineType.ADDITION
+
+        // Deletions (but not --- header, and not markdown lists like "- [ ]")
+        trimmed.startsWith("-") &&
+        !trimmed.startsWith("---") &&
+        !trimmed.startsWith("- [") &&
+        !trimmed.matches(Regex("^-\\s+[A-Z].*")) -> DiffLineType.DELETION
+
+        // Context lines (in a diff block)
+        trimmed.startsWith(" ") -> DiffLineType.CONTEXT
+
+        else -> DiffLineType.NORMAL
+    }
+}
+
 @Composable
 private fun DiffText(text: String, modifier: Modifier = Modifier, style: androidx.compose.ui.text.TextStyle) {
+    val onSurface = MaterialTheme.colorScheme.onSurface
+
     val annotatedString = buildAnnotatedString {
         val lines = text.split("\n")
         lines.forEachIndexed { index, line ->
-            when {
-                line.startsWith("- ") -> {
-                    withStyle(SpanStyle(color = DiffRemoveColor, background = DiffRemoveBgColor)) {
+            val lineType = getDiffLineType(line)
+
+            when (lineType) {
+                DiffLineType.FILE_HEADER -> {
+                    withStyle(SpanStyle(
+                        color = DiffHeaderColor,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )) {
                         append(line)
                     }
                 }
-                line.startsWith("+ ") -> {
-                    withStyle(SpanStyle(color = DiffAddColor, background = DiffAddBgColor)) {
+                DiffLineType.ADDITION -> {
+                    withStyle(SpanStyle(
+                        color = Color(0xFF7EE787), // Bright green text
+                        background = DiffAddBgColor,
+                        fontFamily = FontFamily.Monospace
+                    )) {
                         append(line)
                     }
                 }
-                else -> {
-                    withStyle(SpanStyle(color = MaterialTheme.colorScheme.onSurface)) {
+                DiffLineType.DELETION -> {
+                    withStyle(SpanStyle(
+                        color = Color(0xFFF97583), // Bright red text
+                        background = DiffRemoveBgColor,
+                        fontFamily = FontFamily.Monospace
+                    )) {
+                        append(line)
+                    }
+                }
+                DiffLineType.CONTEXT -> {
+                    withStyle(SpanStyle(
+                        color = DiffContextColor,
+                        fontFamily = FontFamily.Monospace
+                    )) {
+                        append(line)
+                    }
+                }
+                DiffLineType.NORMAL -> {
+                    withStyle(SpanStyle(color = onSurface)) {
                         append(line)
                     }
                 }
             }
+
             if (index < lines.size - 1) {
                 append("\n")
             }

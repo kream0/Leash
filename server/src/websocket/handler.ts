@@ -168,6 +168,66 @@ export class WebSocketHandler {
                 const agents = this.agentManager.getAgents();
                 this.send(ws, { type: 'agents_list', agents });
                 break;
+
+            case 'send_message':
+                this.handleSendMessage(ws, message);
+                break;
+        }
+    }
+
+    private async handleSendMessage(ws: WebSocket, message: ClientMessage): Promise<void> {
+        const { agentId, message: text } = message as { type: string; agentId: string; message: string };
+
+        if (!agentId || !text) {
+            this.send(ws, {
+                type: 'error',
+                error: 'Missing agentId or message'
+            } as unknown as ServerMessage);
+            return;
+        }
+
+        const agent = this.agentManager.getAgent(agentId);
+        if (!agent) {
+            this.send(ws, {
+                type: 'error',
+                error: 'Agent not found'
+            } as unknown as ServerMessage);
+            return;
+        }
+
+        try {
+            // Copy message to clipboard using PowerShell (Windows)
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+
+            const escapedMessage = text.replace(/"/g, '`"').replace(/\$/g, '`$');
+            await execAsync(`powershell -command "Set-Clipboard -Value \\"${escapedMessage}\\""`, { encoding: 'utf8' });
+
+            // Emit activity to all clients
+            const activityMessage = `📋 Message copied to clipboard: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`;
+            this.broadcast({
+                type: 'activity',
+                agentId,
+                content: activityMessage,
+                timestamp: Date.now()
+            });
+
+            // Send confirmation to the sender
+            this.send(ws, {
+                type: 'message_sent',
+                agentId,
+                success: true,
+                hint: 'Paste (Ctrl+V) in Claude Code terminal'
+            } as unknown as ServerMessage);
+
+            console.log(`[WebSocket] Message copied to clipboard for ${agentId}: ${text.substring(0, 50)}...`);
+        } catch (error) {
+            console.error('[WebSocket] Failed to copy to clipboard:', error);
+            this.send(ws, {
+                type: 'error',
+                error: 'Failed to copy message to clipboard'
+            } as unknown as ServerMessage);
         }
     }
 

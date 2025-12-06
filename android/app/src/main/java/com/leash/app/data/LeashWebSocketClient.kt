@@ -70,6 +70,10 @@ class LeashWebSocketClient(
     private val _chatMessages = MutableSharedFlow<Pair<String, ChatMessage>>(replay = 100)
     val chatMessages: SharedFlow<Pair<String, ChatMessage>> = _chatMessages.asSharedFlow()
 
+    // SharedFlow for message send status (clipboard copies)
+    private val _messageSentStatus = MutableSharedFlow<MessageSentStatus>(replay = 1)
+    val messageSentStatus: SharedFlow<MessageSentStatus> = _messageSentStatus.asSharedFlow()
+
     fun connect() {
         if (_connectionState.value == ConnectionState.CONNECTED) return
         
@@ -182,6 +186,8 @@ class LeashWebSocketClient(
                 "activity" -> handleActivity(json)
                 "status_change" -> handleStatusChange(json)
                 "chat_message" -> handleChatMessage(json)
+                "message_sent" -> handleMessageSent(json)
+                "error" -> handleError(json)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -261,6 +267,23 @@ class LeashWebSocketClient(
         return _chatMessagesPerAgent.value[agentId] ?: emptyList()
     }
 
+    private fun handleMessageSent(json: JsonObject) {
+        val agentId = json.get("agentId").asString
+        val success = json.get("success").asBoolean
+        val hint = json.get("hint")?.asString ?: "Message copied to clipboard"
+
+        scope.launch {
+            _messageSentStatus.emit(MessageSentStatus(agentId, success, hint))
+        }
+    }
+
+    private fun handleError(json: JsonObject) {
+        val error = json.get("error")?.asString ?: "Unknown error"
+        scope.launch {
+            _messageSentStatus.emit(MessageSentStatus("", false, error))
+        }
+    }
+
     private fun parseAgent(json: JsonObject): Agent = Agent(
         id = json.get("id").asString,
         name = json.get("name").asString,
@@ -269,6 +292,15 @@ class LeashWebSocketClient(
         connectedAt = json.get("connectedAt").asLong
     )
 }
+
+/**
+ * Status of a sent message (via clipboard)
+ */
+data class MessageSentStatus(
+    val agentId: String,
+    val success: Boolean,
+    val hint: String
+)
 
 enum class ConnectionState {
     DISCONNECTED,

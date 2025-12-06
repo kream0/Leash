@@ -44,4 +44,5 @@ export type ServerMessage =
 export type ClientMessage =
     | { type: 'subscribe'; agentId: string }
     | { type: 'unsubscribe'; agentId: string }
-    | { type: 'list_agents' };
+    | { type: 'list_agents' }
+    | { type: 'send_message'; agentId: string; message: string };
