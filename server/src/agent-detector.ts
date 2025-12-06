@@ -97,13 +97,14 @@ export class AgentDetector extends EventEmitter {
 
     /**
      * Find running AI agent processes in Windows.
+     * Note: Claude Code detection is disabled - we use hooks instead for reliable activity tracking.
      */
     private async findWindowsProcesses(): Promise<DetectedProcess[]> {
         const processes: DetectedProcess[] = [];
 
-        // Find Claude Code processes
-        const claudeProcesses = await this.findClaudeCodeWindows();
-        processes.push(...claudeProcesses);
+        // Claude Code detection disabled - hooks provide better activity tracking
+        // const claudeProcesses = await this.findClaudeCodeWindows();
+        // processes.push(...claudeProcesses);
 
         // Find VS Code (Copilot) processes
         const copilotProcesses = await this.findCopilotWindows();
@@ -206,49 +207,12 @@ export class AgentDetector extends EventEmitter {
 
     /**
      * Find running AI agent processes inside WSL.
+     * Note: Claude Code detection is disabled - we use hooks instead for reliable activity tracking.
      */
     private async findWslProcesses(): Promise<DetectedProcess[]> {
-        const processes: DetectedProcess[] = [];
-
-        try {
-            // Check if WSL is available
-            await execAsync('wsl --status', { encoding: 'utf8' });
-        } catch {
-            // WSL not available or not running
-            return processes;
-        }
-
-        try {
-            // Find Claude Code processes in WSL
-            const { stdout } = await execAsync(
-                'wsl -e bash -c "ps aux | grep -E \'claude|anthropic\' | grep -v grep"',
-                { encoding: 'utf8', timeout: 5000 }
-            );
-
-            const lines = stdout.trim().split('\n').filter(line => line.trim());
-
-            for (const line of lines) {
-                // ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
-                const parts = line.trim().split(/\s+/);
-                if (parts.length >= 11) {
-                    const pid = parseInt(parts[1], 10);
-                    const command = parts.slice(10).join(' ');
-
-                    if (!isNaN(pid) && pid > 0) {
-                        processes.push({
-                            type: 'claude-code',
-                            pid,
-                            command,
-                            isWsl: true
-                        });
-                    }
-                }
-            }
-        } catch {
-            // WSL command failed - maybe no matching processes
-        }
-
-        return processes;
+        // Claude Code detection disabled - hooks provide better activity tracking
+        // WSL Claude Code agents are registered when they send hook events
+        return [];
     }
 
     /**

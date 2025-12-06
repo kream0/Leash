@@ -125,8 +125,9 @@ leash/
 │   ├── src/
 │   │   ├── index.ts        # Entry point, QR code display
 │   │   ├── agent-manager.ts # Agent lifecycle management
+│   │   ├── agent-detector.ts # Auto-detect running agents
 │   │   ├── api/
-│   │   │   └── routes.ts   # REST endpoints
+│   │   │   └── routes.ts   # REST + hooks endpoints
 │   │   ├── websocket/
 │   │   │   └── handler.ts  # Real-time communication
 │   │   └── adapters/
@@ -164,6 +165,39 @@ leash/
 
 ---
 
+## Claude Code Hooks Integration
+
+Leash can monitor Claude Code sessions using Claude Code's built-in hooks system. This provides real-time activity tracking without spawning new processes.
+
+### How It Works
+
+1. Hooks are configured in `.claude/settings.json`
+2. Claude Code calls the hook script for lifecycle events (tool use, prompts, etc.)
+3. The hook script POSTs events to the Leash server
+4. Server broadcasts activity to connected mobile clients
+
+### Supported Events
+
+| Event | Description |
+|-------|-------------|
+| `SessionStart` | Claude Code session started |
+| `UserPromptSubmit` | User submitted a prompt |
+| `PreToolUse` | Before a tool is executed |
+| `PostToolUse` | After a tool completes |
+| `Notification` | System notifications |
+| `Stop` | Session ended |
+
+### Setup (Global Configuration)
+
+The hooks are configured globally in your user's Claude Code settings:
+
+1. **Hook Script**: `~/.claude/hooks/leash_hook.js`
+2. **Settings**: `~/.claude/settings.json` (hooks section)
+
+The hook script automatically tries multiple hosts (localhost, 127.0.0.1, Docker hosts) to find the Leash server.
+
+---
+
 ## MVP Features
 
 - ✅ QR code connection from server to mobile
@@ -173,6 +207,7 @@ leash/
 - ✅ Send text messages to agents
 - ✅ Connection status indicators
 - ✅ Dark theme UI
+- ✅ Claude Code hooks integration for real-time monitoring
 
 ---
 
