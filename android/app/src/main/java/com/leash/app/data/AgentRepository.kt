@@ -2,6 +2,7 @@ package com.leash.app.data
 
 import com.leash.app.model.Agent
 import com.leash.app.model.AgentActivity
+import com.leash.app.model.ChatMessage
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -12,6 +13,9 @@ class AgentRepository(private val webSocketClient: LeashWebSocketClient = LeashW
     val activities: SharedFlow<AgentActivity> = webSocketClient.activities
     val activitiesPerAgent: StateFlow<Map<String, List<AgentActivity>>> =
             webSocketClient.activitiesPerAgent
+    val chatMessagesPerAgent: StateFlow<Map<String, List<ChatMessage>>> =
+            webSocketClient.chatMessagesPerAgent
+    val chatMessages: SharedFlow<Pair<String, ChatMessage>> = webSocketClient.chatMessages
 
     fun connect() {
         webSocketClient.connect()
@@ -35,5 +39,13 @@ class AgentRepository(private val webSocketClient: LeashWebSocketClient = LeashW
 
     fun getActivitiesForAgent(agentId: String): List<AgentActivity> {
         return webSocketClient.getActivitiesForAgent(agentId)
+    }
+
+    suspend fun fetchChatHistory(agentId: String): List<ChatMessage> {
+        return webSocketClient.fetchChatHistory(agentId)
+    }
+
+    fun updateServerUrl(url: String) {
+        webSocketClient.updateServerUrl(url)
     }
 }

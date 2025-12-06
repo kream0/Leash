@@ -5,6 +5,24 @@ export interface Agent {
     type: 'copilot' | 'claude-code';
     status: 'active' | 'idle' | 'disconnected';
     connectedAt: number;
+    pid?: number;
+    isWsl?: boolean;
+    transcriptPath?: string;  // Path to the session transcript file
+}
+
+// Chat message from transcript
+export interface ChatMessage {
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp: string;
+    uuid?: string;
+}
+
+// Real-time chat message event
+export interface ChatMessageEvent {
+    type: 'chat_message';
+    agentId: string;
+    message: ChatMessage;
 }
 
 export interface AgentActivity {
@@ -24,18 +42,6 @@ export type ServerMessage =
     | { type: 'agents_list'; agents: Agent[] };
 
 export type ClientMessage =
-    | { type: 'send_message'; agentId: string; message: string }
     | { type: 'subscribe'; agentId: string }
     | { type: 'unsubscribe'; agentId: string }
     | { type: 'list_agents' };
-
-// Adapter interface
-export interface AgentAdapter {
-    id: string;
-    type: Agent['type'];
-    start(): Promise<void>;
-    stop(): Promise<void>;
-    sendInput(message: string): void;
-    onActivity(callback: (content: string) => void): void;
-    onStatusChange(callback: (status: Agent['status']) => void): void;
-}

@@ -1,15 +1,16 @@
 import { EventEmitter } from 'events';
-import { randomUUID } from 'crypto';
 import type { Agent } from './types/index.js';
-import { BaseAdapter, ClaudeCodeAdapter, CopilotAdapter } from './adapters/index.js';
 import { AgentDetector, DetectedProcess } from './agent-detector.js';
+import { TranscriptWatcher, TranscriptMessage } from './transcript-watcher.js';
 
 /**
- * Manages all connected agent adapters.
+ * Manages all detected AI coding agents.
  * Emits events for agent connections, disconnections, and activity.
  */
 export class AgentManager extends EventEmitter {
-    private adapters: Map<string, BaseAdapter> = new Map();
+    private agents: Map<string, Agent> = new Map();
+    private activityHistory: Map<string, string[]> = new Map();
+    private transcriptWatchers: Map<string, TranscriptWatcher> = new Map();
     private detector: AgentDetector;
     private autoDetectionEnabled: boolean = false;
 
@@ -19,23 +20,42 @@ export class AgentManager extends EventEmitter {
         this.setupDetectorListeners();
     }
 
+    private processToAgentId(process: DetectedProcess): string {
+        // Create stable ID from process info
+        return `${process.type}-${process.isWsl ? 'wsl' : 'win'}-${process.pid}`;
+    }
+
     private setupDetectorListeners(): void {
         this.detector.on('agent_detected', (process: DetectedProcess) => {
-            console.log(`[AgentManager] Auto-detected ${process.type} process (PID: ${process.pid})`);
-            // Note: We don't auto-attach to existing processes yet
-            // This would require more sophisticated process attachment
+            const id = this.processToAgentId(process);
+
+            if (!this.agents.has(id)) {
+                const agent: Agent = {
+                    id,
+                    name: `${process.type}${process.isWsl ? ' (WSL)' : ''} - PID ${process.pid}`,
+                    type: process.type,
+                    status: 'active',
+                    connectedAt: Date.now(),
+                    pid: process.pid,
+                    isWsl: process.isWsl
+                };
+
+                this.agents.set(id, agent);
+                this.activityHistory.set(id, []);
+                this.emit('agent_connected', agent);
+                console.log(`[AgentManager] Registered agent: ${agent.name}`);
+            }
         });
 
         this.detector.on('agent_terminated', (process: DetectedProcess) => {
-            console.log(`[AgentManager] Process terminated (PID: ${process.pid})`);
-            // Find and remove the adapter for this process
-            for (const [id, adapter] of this.adapters) {
-                if (adapter instanceof ClaudeCodeAdapter || adapter instanceof CopilotAdapter) {
-                    if ((adapter as any).getPid?.() === process.pid) {
-                        this.removeAgent(id);
-                        break;
-                    }
-                }
+            const id = this.processToAgentId(process);
+            const agent = this.agents.get(id);
+
+            if (agent) {
+                agent.status = 'disconnected';
+                this.agents.delete(id);
+                this.emit('agent_disconnected', id);
+                console.log(`[AgentManager] Agent terminated: ${agent.name}`);
             }
         });
     }
@@ -59,127 +79,133 @@ export class AgentManager extends EventEmitter {
     }
 
     /**
-     * Get detected but not yet connected processes.
+     * Get or create an agent by ID (for hooks integration).
+     * If agent doesn't exist, creates a hooks-based agent.
      */
-    getDetectedProcesses(): number[] {
-        return this.detector.getKnownPids();
-    }
+    getOrCreateHooksAgent(agentId: string, transcriptPath?: string): Agent {
+        let agent = this.agents.get(agentId);
+        if (!agent) {
+            // Parse the agent ID to determine if it's WSL or Windows
+            const isWsl = agentId.includes('wsl');
+            const location = isWsl ? ' (WSL)' : '';
 
-    /**
-     * Create and register a new Claude Code agent adapter.
-     * @param options Configuration for the Claude Code session
-     */
-    async addClaudeCodeAgent(options?: { workingDirectory?: string; useWsl?: boolean }): Promise<Agent> {
-        const id = randomUUID();
-        const adapter = new ClaudeCodeAdapter(id, options);
-
-        this.setupAdapterListeners(adapter);
-        this.adapters.set(id, adapter);
-
-        await adapter.start();
-        const agent = adapter.toAgent();
-        this.emit('agent_connected', agent);
-
-        return agent;
-    }
-
-    /**
-     * Register or get a hooks-based agent (for Claude Code hooks integration).
-     * These agents don't have adapters - they receive events via HTTP hooks.
-     */
-    getOrCreateHooksAgent(agentId: string): Agent {
-        let adapter = this.adapters.get(agentId);
-        if (!adapter) {
-            // Create a virtual agent for hooks
-            const agent: Agent = {
+            agent = {
                 id: agentId,
-                name: `hooks-${agentId.substring(0, 8)}`,
+                name: `Claude Code${location}`,
                 type: 'claude-code',
                 status: 'active',
-                connectedAt: Date.now()
+                connectedAt: Date.now(),
+                isWsl,
+                transcriptPath
             };
+            this.agents.set(agentId, agent);
+            this.activityHistory.set(agentId, []);
             this.emit('agent_connected', agent);
-            return agent;
+            console.log(`[AgentManager] Registered hook agent: ${agent.name} (${agentId})`);
+
+            // Start transcript watcher if we have a path
+            if (transcriptPath) {
+                this.startTranscriptWatcher(agentId, transcriptPath, isWsl);
+            }
+        } else if (transcriptPath && !agent.transcriptPath) {
+            // Update transcript path if we didn't have it before
+            agent.transcriptPath = transcriptPath;
+            this.startTranscriptWatcher(agentId, transcriptPath, agent.isWsl || false);
         }
-        return adapter.toAgent();
-    }
-
-    /**
-     * Create and register a new Copilot agent adapter.
-     * @param workingDirectory Optional directory to open VS Code in
-     */
-    async addCopilotAgent(workingDirectory?: string): Promise<Agent> {
-        const id = randomUUID();
-        const adapter = new CopilotAdapter(id, workingDirectory);
-
-        this.setupAdapterListeners(adapter);
-        this.adapters.set(id, adapter);
-
-        await adapter.start();
-        const agent = adapter.toAgent();
-        this.emit('agent_connected', agent);
-
         return agent;
     }
 
-    private setupAdapterListeners(adapter: BaseAdapter): void {
-        adapter.onActivity((content) => {
-            this.emit('activity', adapter.id, content);
+    /**
+     * Start watching a transcript file for real-time updates.
+     */
+    private startTranscriptWatcher(agentId: string, transcriptPath: string, isWsl: boolean): void {
+        // Don't start if already watching
+        if (this.transcriptWatchers.has(agentId)) {
+            return;
+        }
+
+        const watcher = new TranscriptWatcher(agentId, transcriptPath, isWsl);
+
+        watcher.on('message', (id: string, message: TranscriptMessage) => {
+            console.log(`[TranscriptWatcher] New message from ${id}: ${message.role} - ${message.content.substring(0, 50)}...`);
+            this.emit('chat_message', id, message);
         });
 
-        adapter.onStatusChange((status) => {
-            this.emit('status_change', adapter.id, status);
-        });
+        watcher.startWatching(1000); // Poll every 1 second
+        this.transcriptWatchers.set(agentId, watcher);
+        console.log(`[AgentManager] Started transcript watcher for ${agentId}`);
+    }
+
+    /**
+     * Stop watching a transcript file.
+     */
+    private stopTranscriptWatcher(agentId: string): void {
+        const watcher = this.transcriptWatchers.get(agentId);
+        if (watcher) {
+            watcher.stopWatching();
+            this.transcriptWatchers.delete(agentId);
+        }
+    }
+
+    /**
+     * Get all messages from an agent's transcript.
+     */
+    async getTranscriptMessages(agentId: string): Promise<TranscriptMessage[]> {
+        const agent = this.agents.get(agentId);
+        if (!agent?.transcriptPath) {
+            return [];
+        }
+
+        const watcher = new TranscriptWatcher(agentId, agent.transcriptPath, agent.isWsl || false);
+        return watcher.getAllMessages();
+    }
+
+    /**
+     * Record activity for an agent.
+     */
+    recordActivity(agentId: string, content: string): void {
+        const history = this.activityHistory.get(agentId) || [];
+        history.push(content);
+        // Keep last 100 activities per agent
+        if (history.length > 100) {
+            history.shift();
+        }
+        this.activityHistory.set(agentId, history);
+    }
+
+    /**
+     * Get activity history for an agent.
+     */
+    getActivityHistory(agentId: string): string[] {
+        return this.activityHistory.get(agentId) || [];
     }
 
     /**
      * Get all connected agents.
      */
     getAgents(): Agent[] {
-        return Array.from(this.adapters.values()).map((a) => a.toAgent());
+        return Array.from(this.agents.values());
     }
 
     /**
      * Get a specific agent by ID.
      */
     getAgent(id: string): Agent | undefined {
-        return this.adapters.get(id)?.toAgent();
+        return this.agents.get(id);
     }
 
     /**
-     * Send a message to an agent.
-     */
-    sendMessage(id: string, message: string): boolean {
-        const adapter = this.adapters.get(id);
-        if (!adapter) return false;
-
-        adapter.sendInput(message);
-        return true;
-    }
-
-    /**
-     * Remove and stop an agent.
-     */
-    async removeAgent(id: string): Promise<boolean> {
-        const adapter = this.adapters.get(id);
-        if (!adapter) return false;
-
-        await adapter.stop();
-        this.adapters.delete(id);
-        this.emit('agent_disconnected', id);
-
-        return true;
-    }
-
-    /**
-     * Stop all agents.
+     * Stop all monitoring.
      */
     async stopAll(): Promise<void> {
         this.stopAutoDetection();
 
-        for (const adapter of this.adapters.values()) {
-            await adapter.stop();
+        // Stop all transcript watchers
+        for (const [agentId] of this.transcriptWatchers) {
+            this.stopTranscriptWatcher(agentId);
         }
-        this.adapters.clear();
+
+        this.agents.clear();
+        this.activityHistory.clear();
     }
 }

@@ -1,6 +1,6 @@
 # TODO - Leash Development
 
-## 🎯 Current Priority: Integration & Polish
+## Current Priority: Polish & Testing
 
 ### Phase 1: Initialization ✅ COMPLETE
 - [x] Design architecture
@@ -26,21 +26,32 @@
 - [x] Connection status UI
 
 ### Phase 4: Claude Code Hooks ✅ COMPLETE
-- [x] Create hook script (.claude/hooks/leash_hook.js)
-- [x] Hook configuration (.claude/settings.json)
-- [x] WSL support with Windows host fallback
+- [x] Create hook script (~/.claude/hooks/leash_hook.js) - GLOBAL
+- [x] Hook configuration (~/.claude/settings.json) - GLOBAL
+- [x] Multi-host fallback (localhost, 127.0.0.1, Docker hosts)
 - [x] Server endpoint for hook events (/api/hooks)
 - [x] Real-time relay to mobile clients
 - [x] Agent detector for auto-discovery
 
-### Phase 5: Integration & Polish
+### Phase 5: Real-time Chat ✅ COMPLETE
 - [x] QR code connection setup
 - [x] Build and install on device
-- [ ] End-to-end testing with live Claude sessions
-- [ ] Error handling & reconnection
-- [ ] UI polish and animations
+- [x] End-to-end testing with live Claude sessions
+- [x] Chat history API endpoint (GET /api/agents/:id/chat)
+- [x] Real-time transcript watching (TranscriptWatcher)
+- [x] WebSocket streaming of chat messages
+- [x] Android chat UI with Activity/Chat tabs
+- [x] Rich tool formatting (diffs, file names, commands)
+- [x] Git-style colored diffs in chat view
+- [x] Auto-scroll on tab switch
+
+### Phase 6: Polish & Stability
+- [ ] Pull-to-refresh for chat history
+- [ ] Error handling & reconnection logic
+- [ ] Test with multiple concurrent agents
+- [ ] UI animations and transitions
+- [ ] Dark mode support
 
 ---
 
-**Estimated Total:** 20-30 hours
-**Status:** Core implementation complete, testing phase
+**Status:** Real-time chat streaming complete with colored diffs

@@ -2,10 +2,12 @@ package com.leash.app.data
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.reflect.TypeToken
 import com.leash.app.model.Agent
 import com.leash.app.model.AgentActivity
 import com.leash.app.model.AgentStatus
 import com.leash.app.model.AgentType
+import com.leash.app.model.ChatMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -27,11 +30,19 @@ import java.util.concurrent.TimeUnit
  * WebSocket client for real-time communication with the Leash server.
  */
 class LeashWebSocketClient(
-    private val serverUrl: String = "ws://10.0.2.2:3000/ws" // Android emulator localhost
+    private var serverUrl: String = "ws://10.0.2.2:3000/ws" // Android emulator localhost
 ) {
     private val client = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .connectTimeout(10, TimeUnit.SECONDS)
         .build()
+
+    // Derive HTTP URL from WebSocket URL
+    private val httpBaseUrl: String
+        get() = serverUrl
+            .replace("ws://", "http://")
+            .replace("wss://", "https://")
+            .replace("/ws", "")
     
     private val gson = Gson()
     private var webSocket: WebSocket? = null
@@ -50,6 +61,14 @@ class LeashWebSocketClient(
     // Also keep the SharedFlow for real-time updates
     private val _activities = MutableSharedFlow<AgentActivity>(replay = 100)
     val activities: SharedFlow<AgentActivity> = _activities.asSharedFlow()
+
+    // Real-time chat messages per agent
+    private val _chatMessagesPerAgent = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
+    val chatMessagesPerAgent: StateFlow<Map<String, List<ChatMessage>>> = _chatMessagesPerAgent.asStateFlow()
+
+    // SharedFlow for new chat messages
+    private val _chatMessages = MutableSharedFlow<Pair<String, ChatMessage>>(replay = 100)
+    val chatMessages: SharedFlow<Pair<String, ChatMessage>> = _chatMessages.asSharedFlow()
 
     fun connect() {
         if (_connectionState.value == ConnectionState.CONNECTED) return
@@ -112,6 +131,47 @@ class LeashWebSocketClient(
         return _activitiesPerAgent.value[agentId] ?: emptyList()
     }
 
+    /**
+     * Fetch chat history for an agent from the server.
+     * This fetches the full conversation transcript.
+     */
+    suspend fun fetchChatHistory(agentId: String): List<ChatMessage> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$httpBaseUrl/api/agents/$agentId/chat")
+                .get()
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (response.isSuccessful) {
+                val body = response.body?.string() ?: return@withContext emptyList()
+                val json = gson.fromJson(body, JsonObject::class.java)
+                val messagesArray = json.getAsJsonArray("messages")
+
+                messagesArray.map { element ->
+                    val obj = element.asJsonObject
+                    ChatMessage(
+                        role = obj.get("role").asString,
+                        content = obj.get("content").asString,
+                        timestamp = obj.get("timestamp").asString
+                    )
+                }
+            } else {
+                emptyList()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    /**
+     * Update the server URL (called when connecting via QR code).
+     */
+    fun updateServerUrl(url: String) {
+        serverUrl = url
+    }
+
     private fun handleMessage(text: String) {
         try {
             val json = gson.fromJson(text, JsonObject::class.java)
@@ -121,6 +181,7 @@ class LeashWebSocketClient(
                 "agent_disconnected" -> handleAgentDisconnected(json)
                 "activity" -> handleActivity(json)
                 "status_change" -> handleStatusChange(json)
+                "chat_message" -> handleChatMessage(json)
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -167,9 +228,37 @@ class LeashWebSocketClient(
     private fun handleStatusChange(json: JsonObject) {
         val agentId = json.get("agentId").asString
         val status = AgentStatus.fromString(json.get("status").asString)
-        _agents.value = _agents.value.map { 
-            if (it.id == agentId) it.copy(status = status) else it 
+        _agents.value = _agents.value.map {
+            if (it.id == agentId) it.copy(status = status) else it
         }
+    }
+
+    private fun handleChatMessage(json: JsonObject) {
+        val agentId = json.get("agentId").asString
+        val messageObj = json.getAsJsonObject("message")
+
+        val chatMessage = ChatMessage(
+            role = messageObj.get("role").asString,
+            content = messageObj.get("content").asString,
+            timestamp = messageObj.get("timestamp").asString
+        )
+
+        // Store in per-agent map
+        val currentMessages = _chatMessagesPerAgent.value.toMutableMap()
+        val agentMessages = (currentMessages[agentId] ?: emptyList()) + chatMessage
+        currentMessages[agentId] = agentMessages.takeLast(200) // Keep last 200 messages
+        _chatMessagesPerAgent.value = currentMessages
+
+        scope.launch {
+            _chatMessages.emit(Pair(agentId, chatMessage))
+        }
+    }
+
+    /**
+     * Get stored chat messages for a specific agent.
+     */
+    fun getChatMessagesForAgent(agentId: String): List<ChatMessage> {
+        return _chatMessagesPerAgent.value[agentId] ?: emptyList()
     }
 
     private fun parseAgent(json: JsonObject): Agent = Agent(
