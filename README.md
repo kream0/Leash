@@ -198,8 +198,9 @@ The hook script automatically tries multiple hosts (localhost, 127.0.0.1, Docker
 
 ---
 
-## MVP Features
+## Features
 
+### Core
 - ✅ QR code connection from server to mobile
 - ✅ Manual URL input for connection
 - ✅ See list of connected AI agents
@@ -208,6 +209,22 @@ The hook script automatically tries multiple hosts (localhost, 127.0.0.1, Docker
 - ✅ Connection status indicators
 - ✅ Dark theme UI
 - ✅ Claude Code hooks integration for real-time monitoring
+
+### Chat & Messaging
+- ✅ Real-time chat streaming with colored syntax
+- ✅ Collapsible diffs (10+ lines auto-collapse, tap to expand)
+- ✅ Clipboard messaging (paste code snippets)
+- ✅ Message queue with interrupt support
+- ✅ Quick "Continue" button for agent prompts
+
+### UX Polish
+- ✅ Auto-connect when server URL is configured
+- ✅ Dark loading screen (no white flash)
+- ✅ Material icons throughout (replaced emojis)
+- ✅ Smart date formatting (HH:mm today, MMM d HH:mm older)
+- ✅ Instant scroll to latest messages
+- ✅ Autopilot mode (auto-send "continue" on Stop events)
+- ✅ Settings menu with Autopilot toggle and Disconnect
 
 ---
 
