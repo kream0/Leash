@@ -28,6 +28,8 @@ $ServerPassword = ""
 $InstallHooks = $true
 $CreateService = $false
 $VpsServerUrl = ""
+$CustomDomain = ""
+$ExternalPort = ""
 
 # ============================================================================
 # Utility Functions
@@ -172,6 +174,24 @@ function Get-DeploymentMode {
         }
     }
     
+    # If local/both mode, ask about custom domain for external access
+    if ($script:DeploymentMode -eq "local" -or $script:DeploymentMode -eq "both") {
+        Write-Host ""
+        Write-Host "  Will this server be accessed from the internet (VPS/cloud)?"
+        if (Confirm-Choice "Configure custom domain for external access?" $false) {
+            Write-Host ""
+            $script:CustomDomain = Read-Host "  Domain or public IP (e.g., leash.example.com)"
+            
+            if ($script:CustomDomain) {
+                Write-Host ""
+                Write-Host "  External port (typically 443 for HTTPS with reverse proxy)"
+                $portInput = Read-Host "  External port [443]"
+                $script:ExternalPort = if ([string]::IsNullOrWhiteSpace($portInput)) { "443" } else { $portInput }
+                Write-Success "Domain: $($script:CustomDomain):$($script:ExternalPort)"
+            }
+        }
+    }
+    
     Write-Success "Mode: $script:DeploymentMode"
 }
 
@@ -307,6 +327,14 @@ PORT=3001
 
     if ($script:ServerPassword) {
         $envContent += "`nLEASH_PASSWORD=$($script:ServerPassword)"
+    }
+    
+    if ($script:CustomDomain) {
+        $envContent += "`nLEASH_DOMAIN=$($script:CustomDomain)"
+    }
+    
+    if ($script:ExternalPort) {
+        $envContent += "`nLEASH_EXTERNAL_PORT=$($script:ExternalPort)"
     }
     
     Set-Content -Path "$LeashHome\server\.env" -Value $envContent
@@ -524,8 +552,20 @@ function Write-Completion {
         Write-Host "  (or: cd $LeashHome\server && node dist\index.js)"
         Write-Host ""
         Write-Host "Open web UI:" -ForegroundColor White
-        Write-Host "  http://localhost:3001"
+        if ($script:CustomDomain) {
+            Write-Host "  https://$($script:CustomDomain)"
+        } else {
+            Write-Host "  http://localhost:3001"
+        }
         Write-Host ""
+        
+        if ($script:CustomDomain) {
+            Write-Host "Custom Domain:" -ForegroundColor White
+            Write-Host "  Domain: $($script:CustomDomain)"
+            Write-Host "  External Port: $($script:ExternalPort)"
+            Write-Host "  WebSocket: wss://$($script:CustomDomain)/ws"
+            Write-Host ""
+        }
     }
     
     if ($script:DeploymentMode -eq "vps" -or $script:DeploymentMode -eq "both") {

@@ -8,6 +8,8 @@ import { WebSocketHandler } from './websocket/handler.js';
 
 const PORT = process.env.PORT || 3001;
 const PASSWORD = process.env.LEASH_PASSWORD;
+const CUSTOM_DOMAIN = process.env.LEASH_DOMAIN;
+const EXTERNAL_PORT = process.env.LEASH_EXTERNAL_PORT;
 
 /**
  * Get the local network IP address.
@@ -51,8 +53,20 @@ function getLocalIP(): string {
  * Display connection info with QR code.
  */
 function displayConnectionInfo(ip: string, port: number | string): void {
-    const wsUrl = `ws://${ip}:${port}/ws`;
-    const httpUrl = `http://${ip}:${port}`;
+    // Determine if we're in VPS mode
+    const isVpsMode = !!CUSTOM_DOMAIN;
+    const protocol = isVpsMode ? 'wss' : 'ws';
+    const httpProtocol = isVpsMode ? 'https' : 'http';
+
+    // Use custom domain if set, otherwise use detected IP
+    const host = CUSTOM_DOMAIN || ip;
+
+    // Use external port if set, otherwise use server port
+    const externalPort = EXTERNAL_PORT || port;
+    const portSuffix = (externalPort === '443' || externalPort === '80') ? '' : `:${externalPort}`;
+
+    const wsUrl = `${protocol}://${host}${portSuffix}/ws`;
+    const httpUrl = `${httpProtocol}://${host}${portSuffix}`;
 
     console.log('\n');
     console.log('╔════════════════════════════════════════════════════════════╗');
@@ -61,6 +75,11 @@ function displayConnectionInfo(ip: string, port: number | string): void {
     console.log('║  Scan this QR code with the Leash mobile app:              ║');
     console.log('╚════════════════════════════════════════════════════════════╝');
     console.log('');
+
+    if (isVpsMode) {
+        console.log(`[VPS Mode] Using domain: ${CUSTOM_DOMAIN}`);
+        console.log('');
+    }
 
     // Generate QR code
     qrcode.generate(wsUrl, { small: true }, (code) => {
@@ -96,15 +115,27 @@ async function main() {
 
     // Connection info endpoint for web UI
     app.get('/api/connection-info', (_req, res) => {
-        const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
-        const httpProtocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-        const wsUrl = `${protocol}://${localIP}:${PORT}/ws`;
-        const apiUrl = `${httpProtocol}://${localIP}:${PORT}/api`;
+        // Determine if we're in production/VPS mode
+        const isProduction = process.env.NODE_ENV === 'production' || !!CUSTOM_DOMAIN;
+        const protocol = isProduction ? 'wss' : 'ws';
+        const httpProtocol = isProduction ? 'https' : 'http';
+
+        // Use custom domain if set, otherwise use detected local IP
+        const host = CUSTOM_DOMAIN || localIP;
+
+        // Use external port if set, otherwise use server port
+        // If external port is 443 (HTTPS) or 80 (HTTP), omit the port from URL
+        const externalPort = EXTERNAL_PORT || PORT;
+        const portSuffix = (externalPort === '443' || externalPort === '80') ? '' : `:${externalPort}`;
+
+        const wsUrl = `${protocol}://${host}${portSuffix}/ws`;
+        const apiUrl = `${httpProtocol}://${host}${portSuffix}/api`;
 
         res.json({
             wsUrl,
             apiUrl,
-            authEnabled: !!PASSWORD
+            authEnabled: !!PASSWORD,
+            isVpsMode: !!CUSTOM_DOMAIN
         });
     });
 

@@ -33,6 +33,8 @@ SERVER_PASSWORD=""
 INSTALL_HOOKS=true
 CREATE_SERVICE=false
 VPS_URL=""
+CUSTOM_DOMAIN=""
+EXTERNAL_PORT=""
 
 # ============================================================================
 # Utility Functions
@@ -183,6 +185,24 @@ prompt_deployment_mode() {
         fi
     fi
     
+    # If local/both mode and server will run on VPS, get domain settings
+    if [[ "$DEPLOYMENT_MODE" == "local" || "$DEPLOYMENT_MODE" == "both" ]]; then
+        echo ""
+        echo "  Will this server be accessed from the internet (VPS/cloud)?"
+        if confirm "Configure custom domain for external access?" "n"; then
+            echo ""
+            read -rp "  Domain or public IP (e.g., leash.example.com): " CUSTOM_DOMAIN
+            
+            if [[ -n "$CUSTOM_DOMAIN" ]]; then
+                echo ""
+                echo "  External port (typically 443 for HTTPS with reverse proxy)"
+                read -rp "  External port [443]: " EXTERNAL_PORT
+                EXTERNAL_PORT=${EXTERNAL_PORT:-443}
+                print_success "Domain: $CUSTOM_DOMAIN:$EXTERNAL_PORT"
+            fi
+        fi
+    fi
+    
     print_success "Mode: $DEPLOYMENT_MODE"
 }
 
@@ -316,6 +336,14 @@ EOF
 
     if [[ -n "$SERVER_PASSWORD" ]]; then
         echo "LEASH_PASSWORD=$SERVER_PASSWORD" >> "$LEASH_HOME/server/.env"
+    fi
+    
+    if [[ -n "$CUSTOM_DOMAIN" ]]; then
+        echo "LEASH_DOMAIN=$CUSTOM_DOMAIN" >> "$LEASH_HOME/server/.env"
+    fi
+    
+    if [[ -n "$EXTERNAL_PORT" ]]; then
+        echo "LEASH_EXTERNAL_PORT=$EXTERNAL_PORT" >> "$LEASH_HOME/server/.env"
     fi
     
     # Create config.json
@@ -597,8 +625,20 @@ print_completion() {
         echo "  sudo systemctl start leash"
         echo ""
         echo -e "${BOLD}Open web UI:${NC}"
-        echo "  http://localhost:3001"
+        if [[ -n "$CUSTOM_DOMAIN" ]]; then
+            echo "  https://$CUSTOM_DOMAIN"
+        else
+            echo "  http://localhost:3001"
+        fi
         echo ""
+        
+        if [[ -n "$CUSTOM_DOMAIN" ]]; then
+            echo -e "${BOLD}Custom Domain:${NC}"
+            echo "  Domain: $CUSTOM_DOMAIN"
+            echo "  External Port: $EXTERNAL_PORT"
+            echo "  WebSocket: wss://$CUSTOM_DOMAIN/ws"
+            echo ""
+        fi
     fi
     
     if [[ "$DEPLOYMENT_MODE" == "vps" || "$DEPLOYMENT_MODE" == "both" ]]; then

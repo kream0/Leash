@@ -8,6 +8,7 @@
 - [ ] Windows MSI installer (InnoSetup)
 - [x] Interactive wizard with deployment mode selection
 - [x] Claude hooks auto-installation
+- [x] Custom domain configuration for VPS (LEASH_DOMAIN, LEASH_EXTERNAL_PORT)
 - [ ] GitHub Releases integration
 
 ### Phase 10: VPS Deployment with Authentication - COMPLETE

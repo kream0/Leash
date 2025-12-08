@@ -1,38 +1,39 @@
 # Last Session
 
-**Date:** 2025-12-06
-**Focus:** Android App Polish + PayloadTooLargeError Fix
+**Date:** 2025-12-08
+**Focus:** VPS Custom Domain Configuration
 
 ## Completed
 
-### Android App UX Improvements
-- **Dark loading screen**: Fixed white flash on startup by changing themes.xml to use dark Material theme
-- **Removed Activity tab**: Chat is now the only/primary view
-- **Auto-connect**: App auto-connects when server URL is configured (skips connection screen)
-- **Fixed date formatting**: Shows HH:mm for today, MMM d HH:mm for older messages
-- **Replaced emojis with Material icons**: All screens now use icons (Pets, SmartToy, AutoAwesome, Cable, etc.)
-- **Improved diff detection**: Now requires "Edit:" header before treating lines as diffs
-- **Collapsible diffs**: Diffs with 10+ lines are collapsed by default, tap to expand
-- **Continue button**: PlayArrow icon sends "continue" message instantly
-- **Autopilot toggle**: Menu option to auto-send "continue" on Stop events
-- **Settings menu**: Dropdown with Autopilot toggle and Disconnect option
+### Server Enhancements
+- **Fixed QR code on Web UI**: Added fallback to external QR API when JS library fails to load
+- **Added custom domain support**: New env vars `LEASH_DOMAIN` and `LEASH_EXTERNAL_PORT`
+- **VPS mode detection**: Terminal and Web UI show proper wss:// URLs when domain is configured
+- **Port omission**: Standard ports (443, 80) are omitted from URLs for cleaner display
 
-### Server Fix
-- Fixed `PayloadTooLargeError` by increasing JSON body limit to 10mb
-- Hook payloads were exceeding default 100kb limit
+### Setup Scripts Updated
+- **install.sh**: Added custom domain wizard prompt and .env generation
+- **install.ps1**: Same changes for Windows PowerShell installer
+- Both scripts now ask "Configure custom domain for external access?" in local/both modes
+
+### Environment Variables
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `LEASH_DOMAIN` | Custom domain/IP for VPS | `leash.example.com` |
+| `LEASH_EXTERNAL_PORT` | External port for reverse proxy | `443` |
 
 ## Files Changed
 
-### Android
-- `android/app/src/main/res/values/themes.xml` - Dark theme fix
-- `android/app/src/main/java/com/leash/app/ui/screens/AgentDetailScreen.kt` - Major rewrite (tabs removed, new features)
-- `android/app/src/main/java/com/leash/app/ui/screens/AgentListScreen.kt` - Emoji to icon changes
-- `android/app/src/main/java/com/leash/app/ui/screens/ConnectionScreen.kt` - Emoji to icon changes
-- `android/app/src/main/java/com/leash/app/ui/navigation/NavHost.kt` - Auto-connect logic
-
 ### Server
-- `server/src/index.ts` - Increased JSON limit to 10mb
+- `server/src/index.ts` - Added LEASH_DOMAIN and LEASH_EXTERNAL_PORT support
+- `server/public/index.html` - Fixed QR code with external API fallback
+- `server/.env.example` - Added new environment variable documentation
+
+### Setup Scripts
+- `install.sh` - Added domain configuration wizard
+- `install.ps1` - Added domain configuration wizard
 
 ## Next Steps
-- Test all features thoroughly
-- Error handling & reconnection logic improvements
+- Test VPS deployment end-to-end
+- Windows MSI installer (InnoSetup)
+- GitHub Releases integration

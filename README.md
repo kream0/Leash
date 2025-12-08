@@ -17,7 +17,19 @@ irm https://raw.githubusercontent.com/user/leash/main/install.ps1 | iex
 The setup wizard will guide you through:
 - **Deployment mode**: Local, VPS, or both
 - **Authentication**: Password protection (optional)
+- **Custom domain**: For VPS deployments with reverse proxy
 - **Claude hooks**: Real-time monitoring integration
+
+### Environment Variables
+
+For VPS deployments, you can configure these in `.env`:
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| `LEASH_PASSWORD` | Authentication password | `your-secure-password` |
+| `LEASH_DOMAIN` | Custom domain for VPS | `leash.example.com` |
+| `LEASH_EXTERNAL_PORT` | External port (reverse proxy) | `443` |
+| `PORT` | Server port | `3001` |
 
 ## Architecture
 
