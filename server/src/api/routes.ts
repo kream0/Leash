@@ -84,8 +84,24 @@ async function readTranscript(transcriptPath: string, isWsl: boolean): Promise<C
 /**
  * Creates Express routes for the REST API.
  */
-export function createRoutes(agentManager: AgentManager): Router {
+export function createRoutes(agentManager: AgentManager, password?: string): Router {
     const router = Router();
+
+    // Authentication middleware
+    const authMiddleware = (req: Request, res: Response, next: Function) => {
+        if (password) {
+            const authHeader = req.headers.authorization;
+            if (authHeader !== password) {
+                console.log('[Routes] Authentication failed - invalid or missing Authorization header');
+                res.status(401).json({ error: 'Unauthorized' });
+                return;
+            }
+        }
+        next();
+    };
+
+    // Apply authentication to all routes
+    router.use(authMiddleware);
 
     // GET /api/agents - List all detected agents
     router.get('/agents', (_req: Request, res: Response) => {

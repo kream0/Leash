@@ -1,0 +1,27 @@
+[Unit]
+Description=Leash Server - AI Agent Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=leash
+WorkingDirectory=/home/leash/leash-server
+EnvironmentFile=/home/leash/leash-server/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=leash
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/leash/leash-server
+
+[Install]
+WantedBy=multi-user.target

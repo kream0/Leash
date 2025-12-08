@@ -1,6 +1,23 @@
 # 🐕 Leash
 
-**Leash** is a lightweight Android app for monitoring and interacting with AI coding agents (GitHub Copilot, Claude Code) running on your local workstation.
+**Leash** is a lightweight Android app for monitoring and interacting with AI coding agents (GitHub Copilot, Claude Code) running on your local workstation or a VPS.
+
+## Quick Install
+
+### Linux/macOS
+```bash
+curl -fsSL https://raw.githubusercontent.com/user/leash/main/install.sh | bash
+```
+
+### Windows (PowerShell)
+```powershell
+irm https://raw.githubusercontent.com/user/leash/main/install.ps1 | iex
+```
+
+The setup wizard will guide you through:
+- **Deployment mode**: Local, VPS, or both
+- **Authentication**: Password protection (optional)
+- **Claude hooks**: Real-time monitoring integration
 
 ## Architecture
 

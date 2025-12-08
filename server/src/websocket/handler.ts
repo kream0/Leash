@@ -15,9 +15,11 @@ export class WebSocketHandler {
     private chatHistory: Map<string, TranscriptMessage[]> = new Map();
     private readonly MAX_HISTORY = 50;
     private readonly MAX_CHAT_HISTORY = 200;
+    private readonly password?: string;
 
-    constructor(private agentManager: AgentManager) {
+    constructor(private agentManager: AgentManager, password?: string) {
         this.wss = new WebSocketServer({ noServer: true });
+        this.password = password;
         this.setupEventHandlers();
     }
 
@@ -86,6 +88,19 @@ export class WebSocketHandler {
     }
 
     handleUpgrade(request: IncomingMessage, socket: any, head: Buffer): void {
+        // Check authentication if password is configured
+        if (this.password) {
+            const url = new URL(request.url || '', `http://${request.headers.host}`);
+            const providedPassword = url.searchParams.get('password');
+
+            if (providedPassword !== this.password) {
+                console.log('[WebSocket] Authentication failed - invalid or missing password');
+                socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+                socket.destroy();
+                return;
+            }
+        }
+
         this.wss.handleUpgrade(request, socket, head, (ws) => {
             this.onConnection(ws);
         });
@@ -288,7 +303,7 @@ export class WebSocketHandler {
 
             await new Promise<void>((resolve, reject) => {
                 const req = http.request(options, (res) => {
-                    res.on('data', () => {});
+                    res.on('data', () => { });
                     res.on('end', () => {
                         this.send(ws, {
                             type: 'interrupt_sent',

@@ -1,6 +1,22 @@
 # TODO - Leash Development
 
-## Current Status: Android App Polish COMPLETE
+## Current Status: Setup Wizard & Installers IN PROGRESS
+
+### Phase 11: Setup Wizard & Installers - IN PROGRESS
+- [x] Linux/Mac setup script (install.sh)
+- [x] Windows PowerShell script (install.ps1)
+- [ ] Windows MSI installer (InnoSetup)
+- [x] Interactive wizard with deployment mode selection
+- [x] Claude hooks auto-installation
+- [ ] GitHub Releases integration
+
+### Phase 10: VPS Deployment with Authentication - COMPLETE
+- [x] Server password authentication (WebSocket + REST)
+- [x] Android app password input and secure storage
+- [x] VPS deployment documentation
+- [x] SSL/TLS setup documentation
+- [x] Web UI for QR code display
+- [x] Hook configuration for VPS
 
 ### Phase 9: Android App UX Improvements - COMPLETE
 - [x] Dark loading screen (no white flash)

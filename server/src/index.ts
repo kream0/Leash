@@ -7,6 +7,7 @@ import { createRoutes } from './api/routes.js';
 import { WebSocketHandler } from './websocket/handler.js';
 
 const PORT = process.env.PORT || 3001;
+const PASSWORD = process.env.LEASH_PASSWORD;
 
 /**
  * Get the local network IP address.
@@ -82,21 +83,38 @@ async function main() {
     // Middleware - increase limit for large hook payloads
     app.use(express.json({ limit: '10mb' }));
 
+    // Serve static files (web UI)
+    app.use(express.static('public'));
+
     // CORS for mobile app
     app.use((_req, res, next) => {
         res.header('Access-Control-Allow-Origin', '*');
         res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Content-Type');
+        res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         next();
     });
 
+    // Connection info endpoint for web UI
+    app.get('/api/connection-info', (_req, res) => {
+        const protocol = process.env.NODE_ENV === 'production' ? 'wss' : 'ws';
+        const httpProtocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+        const wsUrl = `${protocol}://${localIP}:${PORT}/ws`;
+        const apiUrl = `${httpProtocol}://${localIP}:${PORT}/api`;
+
+        res.json({
+            wsUrl,
+            apiUrl,
+            authEnabled: !!PASSWORD
+        });
+    });
+
     // API routes
-    app.use('/api', createRoutes(agentManager));
+    app.use('/api', createRoutes(agentManager, PASSWORD));
 
     // WebSocket upgrade handling
-    const wsHandler = new WebSocketHandler(agentManager);
+    const wsHandler = new WebSocketHandler(agentManager, PASSWORD);
     server.on('upgrade', (request, socket, head) => {
-        if (request.url === '/ws') {
+        if (request.url?.startsWith('/ws')) {
             wsHandler.handleUpgrade(request, socket, head);
         } else {
             socket.destroy();
@@ -109,6 +127,14 @@ async function main() {
     // Start server
     server.listen(PORT, () => {
         displayConnectionInfo(localIP, PORT);
+
+        // Log authentication status
+        if (PASSWORD) {
+            console.log('[Server] 🔒 Authentication ENABLED - password required for all connections');
+        } else {
+            console.warn('[Server] ⚠️  Authentication DISABLED - suitable for local network only');
+            console.warn('[Server] ⚠️  For VPS deployment, set LEASH_PASSWORD environment variable');
+        }
     });
 
     // Start auto-detection of AI coding agents

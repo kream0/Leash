@@ -26,11 +26,13 @@ Enable developers to monitor and interact with their AI coding agents from their
 | Send text messages to agent | P0 | Planned |
 | Connection status indicator | P0 | Planned |
 
+### Recent Additions
+- **Remote access via VPS**: Password-authenticated connections over internet (Phase 10)
+
 ### Out of Scope (MVP)
 - File viewing/editing
 - Approval buttons for agent actions
 - Voice interaction
-- Remote access (VPN/cloud relay)
 
 ## Technical Requirements
 
@@ -45,8 +47,9 @@ Enable developers to monitor and interact with their AI coding agents from their
 - REST API for initial data fetch
 
 ### Security
-- No authentication for MVP (local network)
-- Future: Token-based auth for remote access
+- Password authentication for all connections
+- Secure credential storage on Android (Keystore)
+- SSL/TLS encryption for production VPS deployment
 
 ## Success Metrics
 
