@@ -13,12 +13,21 @@ data class Agent(
 
 enum class AgentType {
     COPILOT,
-    CLAUDE_CODE;
+    CLAUDE_CODE,
+    ANTIGRAVITY;
+
+    val displayName: String
+        get() = when (this) {
+            COPILOT -> "GitHub Copilot"
+            CLAUDE_CODE -> "Claude Code"
+            ANTIGRAVITY -> "Antigravity"
+        }
 
     companion object {
         fun fromString(value: String): AgentType = when (value) {
             "copilot" -> COPILOT
             "claude-code" -> CLAUDE_CODE
+            "antigravity" -> ANTIGRAVITY
             else -> CLAUDE_CODE
         }
     }

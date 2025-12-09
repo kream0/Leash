@@ -1,6 +1,7 @@
 {
     "name": "leash-server",
     "version": "0.1.0",
+    "type": "module",
     "description": "Bridge server for Leash - connects mobile app to AI coding agents",
     "main": "dist/index.js",
     "scripts": {
@@ -26,10 +27,13 @@
         "vitest": "^1.0.4"
     },
     "dependencies": {
+        "@modelcontextprotocol/sdk": "^1.24.3",
         "express": "^4.18.2",
         "qrcode-terminal": "^0.12.0",
+        "rawproto": "^1.0.3",
         "tree-kill": "^1.2.2",
         "uuid": "^9.0.1",
-        "ws": "^8.14.2"
+        "ws": "^8.14.2",
+        "zod": "^4.1.13"
     }
 }

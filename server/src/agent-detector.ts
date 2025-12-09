@@ -5,7 +5,7 @@ import { promisify } from 'util';
 const execAsync = promisify(exec);
 
 export interface DetectedProcess {
-    type: 'claude-code' | 'copilot';
+    type: 'claude-code' | 'copilot' | 'antigravity';
     pid: number;
     command: string;
     workingDirectory?: string;
@@ -110,6 +110,10 @@ export class AgentDetector extends EventEmitter {
         const copilotProcesses = await this.findCopilotWindows();
         processes.push(...copilotProcesses);
 
+        // Antigravity detection disabled - MCP provides better activity tracking
+        // const antigravityProcesses = await this.findAntigravityWindows();
+        // processes.push(...antigravityProcesses);
+
         return processes;
     }
 
@@ -200,6 +204,74 @@ export class AgentDetector extends EventEmitter {
             }
         } catch {
             // Ignore
+        }
+
+        return processes;
+    }
+
+    /**
+     * Find running Antigravity (Google's AI IDE) processes in Windows.
+     * Antigravity is a VS Code fork, so process name may be 'antigravity.exe' or similar.
+     */
+    private async findAntigravityWindows(): Promise<DetectedProcess[]> {
+        const processes: DetectedProcess[] = [];
+
+        try {
+            // Try to find Antigravity process - it may use various executable names
+            const { stdout } = await execAsync(
+                'tasklist /fi "imagename eq antigravity.exe" /fo csv',
+                { encoding: 'utf8' }
+            );
+
+            const lines = stdout.trim().split('\n').filter(line => line.trim());
+            let foundFirst = false;
+
+            for (const line of lines.slice(1)) {
+                if (!foundFirst) {
+                    const match = line.match(/"[^"]+","(\d+)"/);
+                    if (match) {
+                        processes.push({
+                            type: 'antigravity',
+                            pid: parseInt(match[1], 10),
+                            command: 'antigravity.exe',
+                            isWsl: false
+                        });
+                        foundFirst = true;
+                    }
+                }
+            }
+        } catch {
+            // Antigravity not found or not installed - ignore
+        }
+
+        // Also try "Antigravity" (capital A) as Google might use different naming
+        if (processes.length === 0) {
+            try {
+                const { stdout } = await execAsync(
+                    'tasklist /fi "imagename eq Antigravity.exe" /fo csv',
+                    { encoding: 'utf8' }
+                );
+
+                const lines = stdout.trim().split('\n').filter(line => line.trim());
+                let foundFirst = false;
+
+                for (const line of lines.slice(1)) {
+                    if (!foundFirst) {
+                        const match = line.match(/"[^"]+","(\d+)"/);
+                        if (match) {
+                            processes.push({
+                                type: 'antigravity',
+                                pid: parseInt(match[1], 10),
+                                command: 'Antigravity.exe',
+                                isWsl: false
+                            });
+                            foundFirst = true;
+                        }
+                    }
+                }
+            } catch {
+                // Ignore
+            }
         }
 
         return processes;

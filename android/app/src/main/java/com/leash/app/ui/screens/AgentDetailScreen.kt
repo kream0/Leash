@@ -55,10 +55,19 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // Initialize with stored chat messages (real-time) - instant scroll
+    // Fetch chat history from server on initial load
+    LaunchedEffect(agentId) {
+        val history = repository.fetchChatHistory(agentId)
+        if (history.isNotEmpty()) {
+            chatMessages = history
+            coroutineScope.launch { chatListState.scrollToItem(chatMessages.size) }
+        }
+    }
+
+    // Update with stored chat messages (real-time) - instant scroll
     LaunchedEffect(agentId, storedChatMessages) {
-        chatMessages = storedChatMessages
-        if (chatMessages.isNotEmpty()) {
+        if (storedChatMessages.isNotEmpty() && storedChatMessages.size > chatMessages.size) {
+            chatMessages = storedChatMessages
             coroutineScope.launch { chatListState.scrollToItem(chatMessages.size) }
         }
     }
@@ -68,7 +77,10 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
         repository.chatMessages.collect { (msgAgentId, message) ->
             if (msgAgentId == agentId) {
                 // Only add if not already in the list (avoid duplicates from storedChatMessages)
-                if (chatMessages.none { it.timestamp == message.timestamp && it.content == message.content }) {
+                if (chatMessages.none {
+                            it.timestamp == message.timestamp && it.content == message.content
+                        }
+                ) {
                     chatMessages = chatMessages + message
                     coroutineScope.launch { chatListState.scrollToItem(chatMessages.size) }
                 }
@@ -98,144 +110,138 @@ fun AgentDetailScreen(agentId: String, repository: AgentRepository, onBackClick:
     }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            TopAppBar(
-                title = {
-                    if (agent != null) {
-                        Column {
-                            Text(
-                                text = agent.name,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = agent.type.name.replace("_", " "),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    // Interrupt button
-                    IconButton(
-                        onClick = { repository.sendInterrupt(agentId) },
-                        colors = IconButtonDefaults.iconButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        )
-                    ) {
-                        Icon(Icons.Default.Stop, contentDescription = "Interrupt")
-                    }
-
-                    // Status indicator
-                    if (agent != null) {
-                        StatusIndicator(status = agent.status)
-                    }
-
-                    // Menu
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "Menu")
-                        }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Autopilot")
-                                        Spacer(Modifier.weight(1f))
-                                        Switch(
-                                            checked = autopilotEnabled,
-                                            onCheckedChange = {
-                                                autopilotEnabled = it
-                                                showMenu = false
-                                            },
-                                            modifier = Modifier.padding(start = 8.dp)
-                                        )
-                                    }
-                                },
-                                onClick = {
-                                    autopilotEnabled = !autopilotEnabled
-                                    showMenu = false
-                                },
-                                leadingIcon = {
-                                    Icon(
-                                        if (autopilotEnabled) Icons.Default.PlayCircle else Icons.Default.PlayCircleOutline,
-                                        contentDescription = null
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                TopAppBar(
+                        title = {
+                            if (agent != null) {
+                                Column {
+                                    Text(
+                                            text = agent.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                            text = agent.type.displayName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                            }
+                        },
+                        navigationIcon = {
+                            IconButton(onClick = onBackClick) {
+                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            }
+                        },
+                        actions = {
+                            // Interrupt button
+                            IconButton(
+                                    onClick = { repository.sendInterrupt(agentId) },
+                                    colors =
+                                            IconButtonDefaults.iconButtonColors(
+                                                    contentColor = MaterialTheme.colorScheme.error
+                                            )
+                            ) { Icon(Icons.Default.Stop, contentDescription = "Interrupt") }
+
+                            // Status indicator
+                            if (agent != null) {
+                                StatusIndicator(status = agent.status)
+                            }
+
+                            // Menu
+                            Box {
+                                IconButton(onClick = { showMenu = true }) {
+                                    Icon(Icons.Default.MoreVert, contentDescription = "Menu")
+                                }
+                                DropdownMenu(
+                                        expanded = showMenu,
+                                        onDismissRequest = { showMenu = false }
+                                ) {
+                                    DropdownMenuItem(
+                                            text = {
+                                                Row(
+                                                        verticalAlignment =
+                                                                Alignment.CenterVertically
+                                                ) {
+                                                    Text("Autopilot")
+                                                    Spacer(Modifier.weight(1f))
+                                                    Switch(
+                                                            checked = autopilotEnabled,
+                                                            onCheckedChange = {
+                                                                autopilotEnabled = it
+                                                                showMenu = false
+                                                            },
+                                                            modifier =
+                                                                    Modifier.padding(start = 8.dp)
+                                                    )
+                                                }
+                                            },
+                                            onClick = {
+                                                autopilotEnabled = !autopilotEnabled
+                                                showMenu = false
+                                            },
+                                            leadingIcon = {
+                                                Icon(
+                                                        if (autopilotEnabled)
+                                                                Icons.Default.PlayCircle
+                                                        else Icons.Default.PlayCircleOutline,
+                                                        contentDescription = null
+                                                )
+                                            }
+                                    )
+                                }
+                            }
+                        },
+                        colors =
+                                TopAppBarDefaults.topAppBarColors(
+                                        containerColor = MaterialTheme.colorScheme.background
+                                )
                 )
-            )
-        },
-        bottomBar = {
-            MessageInput(
-                text = messageText,
-                onTextChange = { messageText = it },
-                onSend = {
-                    if (messageText.isNotBlank()) {
-                        repository.sendMessage(agentId, messageText)
-                        messageText = ""
-                    }
-                },
-                onContinue = {
-                    repository.sendMessage(agentId, "continue")
-                }
-            )
-        }
+            },
+            bottomBar = {
+                MessageInput(
+                        text = messageText,
+                        onTextChange = { messageText = it },
+                        onSend = {
+                            if (messageText.isNotBlank()) {
+                                repository.sendMessage(agentId, messageText)
+                                messageText = ""
+                            }
+                        },
+                        onContinue = { repository.sendMessage(agentId, "continue") }
+                )
+            }
     ) { padding ->
         if (chatMessages.isEmpty()) {
-            EmptyState(
-                message = "Waiting for messages...",
-                modifier = Modifier.padding(padding)
-            )
+            EmptyState(message = "Waiting for messages...", modifier = Modifier.padding(padding))
         } else {
             LazyColumn(
-                state = chatListState,
-                modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 16.dp)
-            ) {
-                items(chatMessages) { message ->
-                    ChatBubble(message = message)
-                }
-            }
+                    state = chatListState,
+                    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(vertical = 16.dp)
+            ) { items(chatMessages) { message -> ChatBubble(message = message) } }
         }
     }
 }
 
 @Composable
 private fun EmptyState(message: String, modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
+    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Default.Chat,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Icons.Default.Chat,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = message,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = message,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -243,11 +249,12 @@ private fun EmptyState(message: String, modifier: Modifier = Modifier) {
 
 @Composable
 private fun StatusIndicator(status: AgentStatus) {
-    val (color, text) = when (status) {
-        AgentStatus.ACTIVE -> StatusActive to "Active"
-        AgentStatus.IDLE -> StatusIdle to "Idle"
-        AgentStatus.DISCONNECTED -> StatusDisconnected to "Offline"
-    }
+    val (color, text) =
+            when (status) {
+                AgentStatus.ACTIVE -> StatusActive to "Active"
+                AgentStatus.IDLE -> StatusIdle to "Idle"
+                AgentStatus.DISCONNECTED -> StatusDisconnected to "Offline"
+            }
 
     Row(modifier = Modifier.padding(end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(color))
@@ -267,26 +274,27 @@ private fun ChatBubble(message: ChatMessage) {
     val isUser = message.isUser
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         // Role label
         Text(
-            text = if (isUser) "You" else "Claude",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp, start = 4.dp, end = 4.dp)
+                text = if (isUser) "You" else "Claude",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp, start = 4.dp, end = 4.dp)
         )
 
         Surface(
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (isUser) 16.dp else 4.dp,
-                bottomEnd = if (isUser) 4.dp else 16.dp
-            ),
-            color = if (isUser) LeashPrimary else MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.fillMaxWidth()
+                shape =
+                        RoundedCornerShape(
+                                topStart = 16.dp,
+                                topEnd = 16.dp,
+                                bottomStart = if (isUser) 16.dp else 4.dp,
+                                bottomEnd = if (isUser) 4.dp else 16.dp
+                        ),
+                color = if (isUser) LeashPrimary else MaterialTheme.colorScheme.surfaceVariant,
+                modifier = Modifier.fillMaxWidth()
         ) {
             // Check if content contains diff lines
             val diffInfo = if (!isUser) analyzeDiffContent(message.content) else null
@@ -296,40 +304,38 @@ private fun ChatBubble(message: ChatMessage) {
                 // Render with diff coloring, potentially collapsible
                 if (diffInfo.totalLines > 10) {
                     CollapsibleDiffText(
-                        text = message.content,
-                        lineCount = diffInfo.totalLines,
-                        modifier = Modifier.padding(12.dp)
+                            text = message.content,
+                            lineCount = diffInfo.totalLines,
+                            modifier = Modifier.padding(12.dp)
                     )
                 } else {
                     DiffText(
-                        text = message.content,
-                        modifier = Modifier.padding(12.dp),
-                        style = MaterialTheme.typography.bodyMedium
+                            text = message.content,
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium
                     )
                 }
             } else {
                 Text(
-                    text = message.content,
-                    modifier = Modifier.padding(12.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (isUser) LeashOnSurface else MaterialTheme.colorScheme.onSurface
+                        text = message.content,
+                        modifier = Modifier.padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (isUser) LeashOnSurface else MaterialTheme.colorScheme.onSurface
                 )
             }
         }
 
         // Formatted timestamp
         Text(
-            text = formatMessageTime(message.timestamp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
+                text = formatMessageTime(message.timestamp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp, end = 4.dp)
         )
     }
 }
 
-/**
- * Format timestamp: show time only if today, otherwise show date
- */
+/** Format timestamp: show time only if today, otherwise show date */
 private fun formatMessageTime(timestamp: String): String {
     return try {
         // Try to parse ISO format
@@ -340,8 +346,9 @@ private fun formatMessageTime(timestamp: String): String {
             val now = Calendar.getInstance()
             val msgCal = Calendar.getInstance().apply { time = date }
 
-            val isToday = now.get(Calendar.YEAR) == msgCal.get(Calendar.YEAR) &&
-                    now.get(Calendar.DAY_OF_YEAR) == msgCal.get(Calendar.DAY_OF_YEAR)
+            val isToday =
+                    now.get(Calendar.YEAR) == msgCal.get(Calendar.YEAR) &&
+                            now.get(Calendar.DAY_OF_YEAR) == msgCal.get(Calendar.DAY_OF_YEAR)
 
             if (isToday) {
                 SimpleDateFormat("HH:mm", Locale.getDefault()).format(date)
@@ -361,14 +368,12 @@ private fun formatMessageTime(timestamp: String): String {
     }
 }
 
-/**
- * Analyze content for diff patterns - more accurate detection
- */
+/** Analyze content for diff patterns - more accurate detection */
 private data class DiffAnalysis(
-    val isDiff: Boolean,
-    val totalLines: Int,
-    val addedLines: Int,
-    val removedLines: Int
+        val isDiff: Boolean,
+        val totalLines: Int,
+        val addedLines: Int,
+        val removedLines: Int
 )
 
 private fun analyzeDiffContent(text: String): DiffAnalysis {
@@ -383,8 +388,8 @@ private fun analyzeDiffContent(text: String): DiffAnalysis {
         when {
             // Must have an Edit/File header or @@ hunk marker to be a real diff
             trimmed.startsWith("Edit:") ||
-            trimmed.startsWith("File:") ||
-            trimmed.startsWith("@@") -> {
+                    trimmed.startsWith("File:") ||
+                    trimmed.startsWith("@@") -> {
                 hasEditHeader = true
                 if (trimmed.startsWith("@@")) hasHunkHeader = true
             }
@@ -392,11 +397,11 @@ private fun analyzeDiffContent(text: String): DiffAnalysis {
             trimmed.startsWith("+") && !trimmed.startsWith("+++") -> addCount++
             // Count deletions (must be in a diff context, not markdown lists)
             trimmed.startsWith("-") &&
-            !trimmed.startsWith("---") &&
-            !trimmed.startsWith("- [") &&
-            !trimmed.startsWith("- **") &&
-            !trimmed.matches(Regex("^-\\s+[A-Z].*")) &&
-            !trimmed.matches(Regex("^-\\s+\\w+:.*")) -> removeCount++
+                    !trimmed.startsWith("---") &&
+                    !trimmed.startsWith("- [") &&
+                    !trimmed.startsWith("- **") &&
+                    !trimmed.matches(Regex("^-\\s+[A-Z].*")) &&
+                    !trimmed.matches(Regex("^-\\s+\\w+:.*")) -> removeCount++
         }
     }
 
@@ -406,65 +411,55 @@ private fun analyzeDiffContent(text: String): DiffAnalysis {
     val isDiff = hasEditHeader && (addCount > 0 || removeCount > 0)
 
     return DiffAnalysis(
-        isDiff = isDiff,
-        totalLines = addCount + removeCount,
-        addedLines = addCount,
-        removedLines = removeCount
+            isDiff = isDiff,
+            totalLines = addCount + removeCount,
+            addedLines = addCount,
+            removedLines = removeCount
     )
 }
 
-/**
- * Collapsible diff text for large diffs
- */
+/** Collapsible diff text for large diffs */
 @Composable
-private fun CollapsibleDiffText(
-    text: String,
-    lineCount: Int,
-    modifier: Modifier = Modifier
-) {
+private fun CollapsibleDiffText(text: String, lineCount: Int, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
 
     Column(modifier = modifier) {
         // Header with expand/collapse
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { expanded = !expanded }
-                .padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+                modifier =
+                        Modifier.fillMaxWidth()
+                                .clickable { expanded = !expanded }
+                                .padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = DiffHeaderColor,
-                modifier = Modifier.size(20.dp)
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = DiffHeaderColor,
+                    modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
-                text = "Code changes ($lineCount lines)",
-                style = MaterialTheme.typography.labelMedium,
-                color = DiffHeaderColor,
-                fontWeight = FontWeight.Bold
+                    text = "Code changes ($lineCount lines)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = DiffHeaderColor,
+                    fontWeight = FontWeight.Bold
             )
         }
 
         AnimatedVisibility(
-            visible = expanded,
-            enter = expandVertically(),
-            exit = shrinkVertically()
+                visible = expanded,
+                enter = expandVertically(),
+                exit = shrinkVertically()
         ) {
-            DiffText(
-                text = text,
-                modifier = Modifier,
-                style = MaterialTheme.typography.bodyMedium
-            )
+            DiffText(text = text, modifier = Modifier, style = MaterialTheme.typography.bodyMedium)
         }
 
         if (!expanded) {
             Text(
-                text = "Tap to expand",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "Tap to expand",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -482,28 +477,28 @@ private fun getDiffLineType(line: String): DiffLineType {
     val trimmed = line.trimStart()
     return when {
         trimmed.startsWith("Edit:") ||
-        trimmed.startsWith("File:") ||
-        trimmed.startsWith("---") ||
-        trimmed.startsWith("+++") ||
-        trimmed.startsWith("@@") -> DiffLineType.FILE_HEADER
-
+                trimmed.startsWith("File:") ||
+                trimmed.startsWith("---") ||
+                trimmed.startsWith("+++") ||
+                trimmed.startsWith("@@") -> DiffLineType.FILE_HEADER
         trimmed.startsWith("+") && !trimmed.startsWith("+++") -> DiffLineType.ADDITION
-
         trimmed.startsWith("-") &&
-        !trimmed.startsWith("---") &&
-        !trimmed.startsWith("- [") &&
-        !trimmed.startsWith("- **") &&
-        !trimmed.matches(Regex("^-\\s+[A-Z].*")) &&
-        !trimmed.matches(Regex("^-\\s+\\w+:.*")) -> DiffLineType.DELETION
-
+                !trimmed.startsWith("---") &&
+                !trimmed.startsWith("- [") &&
+                !trimmed.startsWith("- **") &&
+                !trimmed.matches(Regex("^-\\s+[A-Z].*")) &&
+                !trimmed.matches(Regex("^-\\s+\\w+:.*")) -> DiffLineType.DELETION
         trimmed.startsWith(" ") -> DiffLineType.CONTEXT
-
         else -> DiffLineType.NORMAL
     }
 }
 
 @Composable
-private fun DiffText(text: String, modifier: Modifier = Modifier, style: androidx.compose.ui.text.TextStyle) {
+private fun DiffText(
+        text: String,
+        modifier: Modifier = Modifier,
+        style: androidx.compose.ui.text.TextStyle
+) {
     val onSurface = MaterialTheme.colorScheme.onSurface
 
     val annotatedString = buildAnnotatedString {
@@ -513,44 +508,39 @@ private fun DiffText(text: String, modifier: Modifier = Modifier, style: android
 
             when (lineType) {
                 DiffLineType.FILE_HEADER -> {
-                    withStyle(SpanStyle(
-                        color = DiffHeaderColor,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )) {
-                        append(line)
-                    }
+                    withStyle(
+                            SpanStyle(
+                                    color = DiffHeaderColor,
+                                    fontWeight = FontWeight.Bold,
+                                    fontFamily = FontFamily.Monospace
+                            )
+                    ) { append(line) }
                 }
                 DiffLineType.ADDITION -> {
-                    withStyle(SpanStyle(
-                        color = Color(0xFF7EE787),
-                        background = DiffAddBgColor,
-                        fontFamily = FontFamily.Monospace
-                    )) {
-                        append(line)
-                    }
+                    withStyle(
+                            SpanStyle(
+                                    color = Color(0xFF7EE787),
+                                    background = DiffAddBgColor,
+                                    fontFamily = FontFamily.Monospace
+                            )
+                    ) { append(line) }
                 }
                 DiffLineType.DELETION -> {
-                    withStyle(SpanStyle(
-                        color = Color(0xFFF97583),
-                        background = DiffRemoveBgColor,
-                        fontFamily = FontFamily.Monospace
-                    )) {
-                        append(line)
-                    }
+                    withStyle(
+                            SpanStyle(
+                                    color = Color(0xFFF97583),
+                                    background = DiffRemoveBgColor,
+                                    fontFamily = FontFamily.Monospace
+                            )
+                    ) { append(line) }
                 }
                 DiffLineType.CONTEXT -> {
-                    withStyle(SpanStyle(
-                        color = DiffContextColor,
-                        fontFamily = FontFamily.Monospace
-                    )) {
-                        append(line)
-                    }
+                    withStyle(
+                            SpanStyle(color = DiffContextColor, fontFamily = FontFamily.Monospace)
+                    ) { append(line) }
                 }
                 DiffLineType.NORMAL -> {
-                    withStyle(SpanStyle(color = onSurface)) {
-                        append(line)
-                    }
+                    withStyle(SpanStyle(color = onSurface)) { append(line) }
                 }
             }
 
@@ -560,61 +550,56 @@ private fun DiffText(text: String, modifier: Modifier = Modifier, style: android
         }
     }
 
-    Text(
-        text = annotatedString,
-        modifier = modifier,
-        style = style
-    )
+    Text(text = annotatedString, modifier = modifier, style = style)
 }
 
 @Composable
 private fun MessageInput(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onSend: () -> Unit,
-    onContinue: () -> Unit
+        text: String,
+        onTextChange: (String) -> Unit,
+        onSend: () -> Unit,
+        onContinue: () -> Unit
 ) {
     Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 8.dp) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
         ) {
             // Continue button
             FilledTonalIconButton(
-                onClick = onContinue,
-                colors = IconButtonDefaults.filledTonalIconButtonColors(
-                    containerColor = LeashSecondary.copy(alpha = 0.2f),
-                    contentColor = LeashSecondary
-                )
-            ) {
-                Icon(Icons.Default.PlayArrow, contentDescription = "Continue")
-            }
+                    onClick = onContinue,
+                    colors =
+                            IconButtonDefaults.filledTonalIconButtonColors(
+                                    containerColor = LeashSecondary.copy(alpha = 0.2f),
+                                    contentColor = LeashSecondary
+                            )
+            ) { Icon(Icons.Default.PlayArrow, contentDescription = "Continue") }
 
             Spacer(modifier = Modifier.width(8.dp))
 
             OutlinedTextField(
-                value = text,
-                onValueChange = onTextChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Send a message...") },
-                shape = RoundedCornerShape(24.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = LeashPrimary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                keyboardActions = KeyboardActions(onSend = { onSend() }),
-                singleLine = true
+                    value = text,
+                    onValueChange = onTextChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Send a message...") },
+                    shape = RoundedCornerShape(24.dp),
+                    colors =
+                            OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = LeashPrimary,
+                                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                    keyboardActions = KeyboardActions(onSend = { onSend() }),
+                    singleLine = true
             )
 
             Spacer(modifier = Modifier.width(8.dp))
 
             FilledIconButton(
-                onClick = onSend,
-                colors = IconButtonDefaults.filledIconButtonColors(containerColor = LeashPrimary)
-            ) {
-                Icon(Icons.Default.Send, contentDescription = "Send")
-            }
+                    onClick = onSend,
+                    colors =
+                            IconButtonDefaults.filledIconButtonColors(containerColor = LeashPrimary)
+            ) { Icon(Icons.Default.Send, contentDescription = "Send") }
         }
     }
 }

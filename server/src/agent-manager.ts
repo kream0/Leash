@@ -81,18 +81,47 @@ export class AgentManager extends EventEmitter {
     /**
      * Get or create an agent by ID (for hooks integration).
      * If agent doesn't exist, creates a hooks-based agent.
+     * Agent type is determined from the agentId prefix or source parameter.
      */
-    getOrCreateHooksAgent(agentId: string, transcriptPath?: string): Agent {
+    getOrCreateHooksAgent(agentId: string, transcriptPath?: string, source?: string): Agent {
         let agent = this.agents.get(agentId);
         if (!agent) {
             // Parse the agent ID to determine if it's WSL or Windows
             const isWsl = agentId.includes('wsl');
             const location = isWsl ? ' (WSL)' : '';
 
+            // Determine agent type from source or agentId prefix
+            let agentType: 'claude-code' | 'copilot' | 'antigravity' = 'claude-code';
+            let agentName = 'Claude Code';
+
+            if (source) {
+                // Explicit source provided
+                if (source === 'antigravity') {
+                    agentType = 'antigravity';
+                    agentName = 'Antigravity';
+                } else if (source === 'copilot') {
+                    agentType = 'copilot';
+                    agentName = 'Copilot';
+                } else if (source === 'claude-code' || source === 'claude') {
+                    agentType = 'claude-code';
+                    agentName = 'Claude Code';
+                }
+            } else {
+                // Infer from agentId prefix
+                const lowerAgentId = agentId.toLowerCase();
+                if (lowerAgentId.startsWith('antigravity')) {
+                    agentType = 'antigravity';
+                    agentName = 'Antigravity';
+                } else if (lowerAgentId.startsWith('copilot')) {
+                    agentType = 'copilot';
+                    agentName = 'Copilot';
+                }
+            }
+
             agent = {
                 id: agentId,
-                name: `Claude Code${location}`,
-                type: 'claude-code',
+                name: `${agentName}${location}`,
+                type: agentType,
                 status: 'active',
                 connectedAt: Date.now(),
                 isWsl,

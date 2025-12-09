@@ -1,39 +1,46 @@
 # Last Session
 
 **Date:** 2025-12-08
-**Focus:** VPS Custom Domain Configuration
+**Focus:** Antigravity Real-Time Integration via MCP
 
 ## Completed
 
-### Server Enhancements
-- **Fixed QR code on Web UI**: Added fallback to external QR API when JS library fails to load
-- **Added custom domain support**: New env vars `LEASH_DOMAIN` and `LEASH_EXTERNAL_PORT`
-- **VPS mode detection**: Terminal and Web UI show proper wss:// URLs when domain is configured
-- **Port omission**: Standard ports (443, 80) are omitted from URLs for cleaner display
+### Android APK Rebuild
+- Fixed `build.gradle.kts` duplicate lines
+- Added security-crypto dependency
+- Built fresh APK
 
-### Setup Scripts Updated
-- **install.sh**: Added custom domain wizard prompt and .env generation
-- **install.ps1**: Same changes for Windows PowerShell installer
-- Both scripts now ask "Configure custom domain for external access?" in local/both modes
+### Antigravity Server Support
+- Added 'antigravity' to Agent type
+- Added process detection (`findAntigravityWindows()`)
+- Enhanced hooks endpoint with source parameter
+- Created hook script (`leash_antigravity_hook.cjs`)
 
-### Environment Variables
-| Variable | Purpose | Example |
-|----------|---------|---------|
-| `LEASH_DOMAIN` | Custom domain/IP for VPS | `leash.example.com` |
-| `LEASH_EXTERNAL_PORT` | External port for reverse proxy | `443` |
+### MCP Server for Real-Time Integration
+- Installed `@modelcontextprotocol/sdk` and `zod`
+- Created `mcp-server.ts` with tools:
+  - `leash_log_activity` - Log activity to mobile
+  - `leash_check_messages` - Get messages from mobile
+  - `leash_send_prompt` - Log user prompts
+  - `leash_log_tool` - Log tool usage
+- Server connects to Leash REST API for event forwarding
+- Created `ANTIGRAVITY_MCP_SETUP.md` documentation
 
 ## Files Changed
 
 ### Server
-- `server/src/index.ts` - Added LEASH_DOMAIN and LEASH_EXTERNAL_PORT support
-- `server/public/index.html` - Fixed QR code with external API fallback
-- `server/.env.example` - Added new environment variable documentation
+- `src/types/index.ts` - Added 'antigravity' type
+- `src/agent-detector.ts` - Antigravity process detection
+- `src/agent-manager.ts` - Multi-agent hook support
+- `src/api/routes.ts` - Multi-agent hooks endpoint
+- `src/mcp-server.ts` - **NEW** MCP server for Antigravity
+- `package.json` - Added MCP SDK dependencies
+- `scripts/leash_antigravity_hook.cjs` - Hook script
 
-### Setup Scripts
-- `install.sh` - Added domain configuration wizard
-- `install.ps1` - Added domain configuration wizard
+### Documentation
+- `ANTIGRAVITY_MCP_SETUP.md` - **NEW** Configuration guide
 
 ## Next Steps
-- Test VPS deployment end-to-end
-- Windows MSI installer (InnoSetup)
-- GitHub Releases integration
+- User configures Antigravity to use Leash MCP server
+- Test real-time integration end-to-end
+- Update setup scripts to install MCP config

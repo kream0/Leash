@@ -2,7 +2,7 @@
 export interface Agent {
     id: string;
     name: string;
-    type: 'copilot' | 'claude-code';
+    type: 'copilot' | 'claude-code' | 'antigravity';
     status: 'active' | 'idle' | 'disconnected';
     connectedAt: number;
     pid?: number;

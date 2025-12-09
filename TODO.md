@@ -1,6 +1,12 @@
 # TODO - Leash Development
 
-## Current Status: Setup Wizard & Installers IN PROGRESS
+## Current Status: Multi-Agent Support IN PROGRESS
+
+### Phase 12: Additional Agent Support - IN PROGRESS
+- [ ] Antigravity (Google/Windsurf) adapter
+- [ ] Copilot hooks integration (similar to Claude hooks)
+- [ ] Update agent type definitions
+- [ ] Setup wizard updates for new agents
 
 ### Phase 11: Setup Wizard & Installers - IN PROGRESS
 - [x] Linux/Mac setup script (install.sh)
@@ -71,4 +77,4 @@
 
 ---
 
-**Status:** Core features complete. Ready for testing and polish.
+**Status:** Core features complete. Adding multi-agent support.

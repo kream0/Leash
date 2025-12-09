@@ -119,6 +119,24 @@ export function createRoutes(agentManager: AgentManager, password?: string): Rou
         res.json({ agent, activity: agentManager.getActivityHistory(req.params.id) });
     });
 
+    // GET /api/agents/:id/chat - Get agent activity as chat messages
+    router.get('/agents/:id/chat', (req: Request, res: Response) => {
+        const agent = agentManager.getAgent(req.params.id);
+        if (!agent) {
+            res.status(404).json({ error: 'Agent not found' });
+            return;
+        }
+
+        const activity = agentManager.getActivityHistory(req.params.id);
+        const messages = activity.map((content, index) => ({
+            role: content.includes('User:') ? 'user' : 'assistant',
+            content: content,
+            timestamp: new Date(Date.now() - (activity.length - index) * 1000).toISOString()
+        }));
+
+        res.json({ messages });
+    });
+
     // GET /api/health - Health check
     router.get('/health', (_req: Request, res: Response) => {
         res.json({ status: 'ok', timestamp: Date.now() });
